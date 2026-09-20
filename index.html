@@ -1,0 +1,1882 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Check-In</title></head><body>
+<style>
+  :root {
+    --ground: #f5f2ea;
+    --surface: #fffefb;
+    --surface-2: #ece7da;
+    --ink: #20262b;
+    --ink-soft: #55524a;
+    --muted: #85806f;
+    --line: #ddd5c2;
+    --accent: #2b6e7a;
+    --accent-ink: #0f3d45;
+    --accent-tint: #dfeced;
+    --success: #3f7d45;
+    --success-tint: #e2eee0;
+    --warning: #a8721f;
+    --warning-tint: #f4e6cf;
+    --critical: #a23b2e;
+    --critical-tint: #f4dfd9;
+    --focus: #2b6e7a;
+    --shadow: 0 1px 2px rgba(32,38,43,0.06), 0 8px 24px -12px rgba(32,38,43,0.18);
+    --radius-s: 6px;
+    --radius-m: 10px;
+    --radius-l: 16px;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14181a;
+      --surface: #1c2225;
+      --surface-2: #232a2d;
+      --ink: #ece9e1;
+      --ink-soft: #c4c0b5;
+      --muted: #8b9291;
+      --line: #333c3f;
+      --accent: #5db2c1;
+      --accent-ink: #d7eef1;
+      --accent-tint: #1d383d;
+      --success: #6fbb78;
+      --success-tint: #1f3122;
+      --warning: #e0ac52;
+      --warning-tint: #3a2c15;
+      --critical: #e08574;
+      --critical-tint: #3c211d;
+      --focus: #5db2c1;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 28px -14px rgba(0,0,0,0.6);
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #14181a;
+    --surface: #1c2225;
+    --surface-2: #232a2d;
+    --ink: #ece9e1;
+    --ink-soft: #c4c0b5;
+    --muted: #8b9291;
+    --line: #333c3f;
+    --accent: #5db2c1;
+    --accent-ink: #d7eef1;
+    --accent-tint: #1d383d;
+    --success: #6fbb78;
+    --success-tint: #1f3122;
+    --warning: #e0ac52;
+    --warning-tint: #3a2c15;
+    --critical: #e08574;
+    --critical-tint: #3c211d;
+    --focus: #5db2c1;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 8px 28px -14px rgba(0,0,0,0.6);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    line-height: 1.45;
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+  }
+
+  .eyebrow {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(24px, 3vw, 32px);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .note-chip {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .btn:focus-visible, a:focus-visible, [tabindex]:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--surface);
+  }
+  .btn-primary:hover { filter: brightness(1.06); color: var(--surface); }
+  .btn-primary:disabled, .btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+    filter: none;
+  }
+  .btn-block { width: 100%; }
+  .btn-ghost { background: transparent; }
+  .btn-lg { padding: 12px 16px; font-size: 14.5px; }
+  .btn-sm { padding: 5px 10px; font-size: 11.5px; }
+  .btn-danger { background: var(--critical-tint); border-color: var(--critical); color: var(--critical); }
+  .btn-danger:hover { background: var(--critical); border-color: var(--critical); color: #fff; }
+
+  /* ---------- App shell (same layout on phone and desktop) ---------- */
+  .app-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+  .app-shell {
+    width: 100%;
+    max-width: 460px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-l);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: min(80vh, 690px);
+    position: relative;
+  }
+
+  .loading-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    overflow: hidden;
+    z-index: 4;
+    background: transparent;
+  }
+  .loading-bar.is-active::after {
+    content: "";
+    position: absolute;
+    top: 0; left: -30%;
+    width: 30%; height: 100%;
+    background: var(--accent);
+    animation: loadingSlide 0.9s linear infinite;
+  }
+  @keyframes loadingSlide {
+    0% { left: -30%; }
+    100% { left: 100%; }
+  }
+
+  .conn-dot-wrap {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 4;
+  }
+  .conn-dot {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 3px var(--surface);
+  }
+  .conn-dot.is-on { background: var(--success); }
+
+  .phone-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+  }
+  .phone-tabbar {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    gap: 2px;
+    padding: 6px 6px 12px;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .tabbar-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 8.5px;
+    font-weight: 500;
+    color: var(--muted);
+    padding: 4px 1px;
+    cursor: pointer;
+    position: relative;
+    text-align: center;
+    line-height: 1.05;
+  }
+  .tabbar-btn svg { width: 17px; height: 17px; }
+  .tabbar-btn.active { color: var(--accent-ink); }
+  .tabbar-lock {
+    position: absolute;
+    top: -3px;
+    right: 22%;
+    font-size: 9px;
+    line-height: 1;
+  }
+  .tabbar-scan {
+    flex: none;
+    width: 54px;
+    height: 54px;
+    margin-top: -26px;
+    border-radius: 50%;
+    border: 4px solid var(--surface);
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+  .tabbar-scan svg { width: 22px; height: 22px; }
+  .tabbar-scan:hover { filter: brightness(1.07); }
+  .tabbar-scan.is-active { box-shadow: 0 0 0 4px var(--accent-tint), var(--shadow); }
+
+  .phone-caption {
+    display: none;
+  }
+
+  .screen-title {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .screen-sub { font-size: 12.5px; color: var(--muted); margin: -8px 0 2px; }
+
+  .divider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 0;
+  }
+  .divider-row::before, .divider-row::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+  .divider-row span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .lanyard-list { display: flex; flex-direction: column; gap: 8px; }
+  .lanyard-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 10px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--ink);
+  }
+  .lanyard-item:hover { border-color: var(--accent); }
+  .qr-glyph {
+    width: 30px; height: 30px; flex: none;
+    border-radius: 5px;
+    background:
+      repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px 6px),
+      repeating-linear-gradient(0deg, var(--ink) 0 3px, transparent 3px 6px);
+    background-blend-mode: multiply;
+    background-color: var(--surface);
+    opacity: 0.85;
+  }
+  .lanyard-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+  .lanyard-name { font-size: 13.5px; font-weight: 500; }
+  .lanyard-id { font-size: 11px; color: var(--muted); }
+
+  .lookup-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 10px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--ink);
+  }
+  .lookup-item:hover { border-color: var(--accent); }
+  .lookup-name { font-size: 13.5px; font-weight: 500; }
+  .lookup-meta { font-size: 11px; color: var(--muted); }
+
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px;
+  }
+  .id-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .id-name { font-family: "Fraunces", Georgia, serif; font-size: 19px; font-weight: 600; }
+  .id-meta { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+  .id-code { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .id-print-note { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .pill-success { background: var(--success-tint); color: var(--success); }
+  .pill-warning { background: var(--warning-tint); color: var(--warning); }
+  .pill-critical { background: var(--critical-tint); color: var(--critical); }
+  .pill-neutral { background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill-sm { font-size: 10.5px; padding: 2px 7px; }
+
+  .flag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+  .alert-lost {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--critical-tint);
+    color: var(--critical);
+    border-radius: var(--radius-m);
+    padding: 10px 12px;
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  .lost-panel {
+    border-radius: var(--radius-m);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lost-panel.is-alert { border-color: var(--critical); background: var(--critical-tint); }
+  .lost-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .lost-panel.is-alert .lost-panel-head { color: var(--critical); }
+  .lost-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    padding: 8px 10px;
+  }
+  .lost-row-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--ink);
+  }
+
+  .list-total { font-size: 12px; color: var(--muted); margin: -4px 0 2px; }
+  .list-group-head {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-top: 6px;
+  }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-tile {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .stat-value { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-size: 30px; font-weight: 600; color: var(--ink); line-height: 1.1; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .tabs { display: flex; gap: 6px; background: var(--surface-2); padding: 3px; border-radius: 999px; border: 1px solid var(--line); }
+  .tab-btn {
+    flex: 1;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 10px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  .activity-item {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    padding: 10px 12px;
+    background: var(--surface-2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .activity-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .activity-name { font-size: 13.5px; font-weight: 500; }
+  .activity-time { font-size: 11px; color: var(--muted); }
+  .capacity-row { display: flex; align-items: center; gap: 8px; }
+  .capacity-track {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .capacity-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+  .capacity-fill.is-warning { background: var(--warning); }
+  .capacity-fill.is-critical { background: var(--critical); }
+  .capacity-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  .back-link {
+    align-self: flex-start;
+    font-size: 12.5px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .screen-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .screen-head-row .screen-title { margin: 0; }
+  .screen-head-row .back-link { align-self: auto; flex: none; }
+
+  .staff-link {
+    margin-top: auto;
+    padding-top: 10px;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-top: 1px dashed var(--line);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .staff-link:hover { color: var(--accent-ink); }
+
+  .empty-note {
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: center;
+    padding: 30px 10px;
+  }
+
+  /* ---------- Camera screen ---------- */
+  .camera-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: #05070a;
+    border-radius: var(--radius-m);
+    overflow: hidden;
+  }
+  .camera-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .camera-reticle {
+    position: absolute;
+    inset: 18% 14%;
+    border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 14px;
+    box-shadow: 0 0 0 999px rgba(0,0,0,0.28);
+    pointer-events: none;
+  }
+  .camera-msg {
+    position: absolute;
+    left: 8%; right: 8%; bottom: 10px;
+    text-align: center;
+    font-size: 12px;
+    color: #fff;
+    background: rgba(0,0,0,0.55);
+    padding: 6px 10px;
+    border-radius: 999px;
+    min-height: 14px;
+  }
+  .camera-error {
+    background: var(--critical-tint);
+    color: var(--critical);
+    border-radius: var(--radius-m);
+    padding: 12px;
+    font-size: 12.5px;
+  }
+  .manual-entry { display: flex; flex-direction: column; gap: 8px; }
+  .manual-entry label { font-size: 11.5px; color: var(--muted); }
+  .manual-entry-row { display: flex; gap: 6px; }
+  .text-input {
+    flex: 1;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .field-error { font-size: 11.5px; color: var(--critical); min-height: 14px; }
+
+  /* ---------- PIN screen ---------- */
+  .pin-wrap { display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; padding-top: 20px; }
+  .pin-lock { font-size: 30px; }
+  .pin-input {
+    width: 140px;
+    text-align: center;
+    letter-spacing: 0.3em;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 18px;
+    padding: 10px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .pin-hint { font-size: 11px; color: var(--muted); }
+
+  /* ---------- Print screen ---------- */
+  .print-toolbar { display: flex; flex-direction: column; gap: 8px; }
+  .print-summary { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .print-list { display: flex; flex-direction: column; gap: 6px; }
+  .print-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    background: var(--surface-2);
+  }
+  .print-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+  .print-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .print-row-name { font-size: 13px; font-weight: 500; }
+  .print-row-ward { font-size: 11px; color: var(--muted); }
+  .print-actionbar {
+    position: sticky;
+    bottom: -16px;
+    margin: 4px -16px -16px;
+    padding: 12px 16px 16px;
+    background: linear-gradient(var(--surface) 40%, var(--surface) 100%);
+    border-top: 1px solid var(--line);
+  }
+  .toast {
+    background: var(--success-tint);
+    color: var(--success);
+    border-radius: var(--radius-s);
+    padding: 9px 12px;
+    font-size: 12.5px;
+    text-align: center;
+  }
+
+
+  /* ---------- Phone-first: on a phone the app fills the whole screen ---------- */
+  @media (max-width: 520px) {
+    .page { padding: 0; gap: 0; max-width: none; }
+    .app-wrap { gap: 0; }
+    .app-shell {
+      max-width: none;
+      height: 100vh;
+      height: 100dvh;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .phone-content { padding-top: 24px; }
+  }
+
+  /* ---------- QR code on a person's full page ---------- */
+  .person-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .person-qr-box { background: #fff; padding: 10px; border-radius: var(--radius-m); border: 1px solid var(--line); line-height: 0; }
+  .person-qr-box canvas { width: 160px; height: 160px; display: block; }
+  .person-qr-label { font-size: 11px; color: var(--muted); text-align: center; }
+
+  /* ---------- Sheet pane ---------- */
+  .sheet-pane { display: flex; flex-direction: column; gap: 18px; }
+  .sheet-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-l);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .sheet-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet-card-head h2 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--success);
+  }
+  .live-dot::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 3px var(--success-tint);
+  }
+
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 620px; }
+  thead th {
+    text-align: left;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+    position: sticky;
+    top: 0;
+  }
+  tbody td {
+    padding: 9px 18px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.just-updated { animation: rowflash 1.6s ease-out; }
+  @keyframes rowflash {
+    0% { background: var(--accent-tint); }
+    100% { background: transparent; }
+  }
+  .cell-muted { color: var(--muted); }
+  .cell-id { color: var(--muted); font-size: 11.5px; }
+
+  .footnote {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+  .footnote strong { color: var(--ink); }
+
+  /* ---------- Print output (physical lanyards) ---------- */
+  .print-sheet { display: none; }
+  @media print {
+    body.printing > *:not(.print-sheet) { display: none !important; }
+    body.printing { background: #fff; }
+    .print-sheet {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10mm;
+      padding: 8mm;
+    }
+    .print-card {
+      break-inside: avoid;
+      border: 1px dashed #999;
+      border-radius: 8px;
+      padding: 6mm;
+      text-align: center;
+      color: #111;
+      background: #fff;
+    }
+    .print-card canvas { width: 32mm; height: 32mm; }
+    .print-card-name { font-family: Georgia, serif; font-weight: 700; font-size: 13pt; margin-top: 3mm; }
+    .print-card-ward { font-size: 8.5pt; color: #444; margin-top: 1mm; }
+    .print-card-id { font-family: "IBM Plex Mono", monospace; font-size: 8pt; color: #666; margin-top: 2mm; }
+    .print-card-dietary {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.5mm;
+      margin-top: 2mm;
+      padding: 0.8mm 3mm;
+      border: 1px solid #111;
+      border-radius: 999px;
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #111;
+    }
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+<div class="page">
+
+  <div class="app-wrap">
+    <div class="app-shell" aria-label="QR Check-In app">
+      <div class="loading-bar" id="loadingBar"></div>
+      <div class="conn-dot-wrap"><span class="conn-dot" id="connDot" title="Connection status"></span></div>
+      <div class="phone-content" id="screen"></div>
+      <nav class="phone-tabbar" aria-label="App navigation">
+        <button class="tabbar-btn" id="tabDashboardBtn" data-action="selectTab" data-tab="dashboard" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11"/><path d="M12 20V4"/><path d="M20 20v-6"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="tabbar-btn" id="tabPeopleBtn" data-action="selectTab" data-tab="people" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M16 14.3c2.5.5 4.3 2.6 4.3 5.4"/></svg>
+          <span>People</span>
+        </button>
+        <button class="tabbar-btn" id="tabOtherBtn" data-action="selectTab" data-tab="other" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="1.5"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 10.5h6M9 13.5h6M9 16.5h4"/></svg>
+          <span>Other</span>
+        </button>
+        <button class="tabbar-btn" id="tabPrintBtn" data-action="selectTab" data-tab="print" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5"/><rect x="3" y="9" width="18" height="8" rx="1.3"/><path d="M6 14h12v6H6z"/></svg>
+          <span>Print</span>
+        </button>
+        <button class="tabbar-btn" id="tabSettingsBtn" data-action="selectTab" data-tab="settings" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
+        </button>
+        <button class="tabbar-scan" id="tabScanBtn" data-action="openCamera" type="button" aria-label="Scan QR code">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.4"/></svg>
+        </button>
+      </nav>
+    </div>
+    <p class="phone-caption" id="phoneCaption"></p>
+  </div>
+
+</div>
+
+<div class="print-sheet" id="printSheet" aria-hidden="true"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var DEMO_PIN = "2468";
+
+  // ---------- live backend wiring ----------
+  var BACKEND_URL = "";
+  try { BACKEND_URL = localStorage.getItem("qrCheckinBackendUrl") || ""; } catch (e) { /* private window etc — fine, just no persistence */ }
+  var backendBusy = false;
+  var settingsUrlDraft = BACKEND_URL;
+  var lastStatusText = "Not connected";
+  var connectedOk = false;
+  var pendingRequests = 0;
+
+  function setConnStatus(text, ok) {
+    lastStatusText = text;
+    connectedOk = !!ok;
+    var dot = document.getElementById("connDot");
+    if (dot) dot.classList.toggle("is-on", connectedOk);
+    var statusText = document.getElementById("settingsStatusText");
+    if (statusText) {
+      statusText.textContent = text;
+      statusText.style.color = ok ? "var(--success)" : "";
+    }
+  }
+
+  function setLoading(isLoading) {
+    pendingRequests += isLoading ? 1 : -1;
+    if (pendingRequests < 0) pendingRequests = 0;
+    var bar = document.getElementById("loadingBar");
+    if (bar) bar.classList.toggle("is-active", pendingRequests > 0);
+  }
+
+  function apiGet(action) {
+    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=" + encodeURIComponent(action);
+    setLoading(true);
+    return fetch(url).then(function (r) { return r.json(); }).finally(function () { setLoading(false); });
+  }
+
+  // NOTE: no custom headers here on purpose — a bare string body defaults to
+  // Content-Type: text/plain, which keeps this a CORS "simple request" so it
+  // works straight from a locally-hosted page with no server-side CORS setup
+  // (Apps Script web apps can't answer a CORS preflight OPTIONS request).
+  function apiPost(payload) {
+    setLoading(true);
+    return fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) }).then(function (r) { return r.json(); }).finally(function () { setLoading(false); });
+  }
+
+  function mapServerRegistrant(r) {
+    return {
+      id: r.id, name: r.name, ward: r.ward, stake: r.stake, dietary: r.dietary,
+      checkedIn: !!r.checkedIn, checkedInAt: r.checkedInAt || null,
+      bookings: r.bookings || [],
+      qrPrinted: !!r.qrPrinted, qrPrintedAt: r.qrPrintedAt || null,
+      lost: !!r.lost, lostAt: r.lostAt || null,
+      needsPickup: !!r.needsPickup, pickupTime: r.pickupTime || null,
+      team: r.team || null
+    };
+  }
+
+  function loadFromBackend() {
+    if (!BACKEND_URL) return;
+    setConnStatus("Loading from Sheet…", false);
+    backendBusy = true;
+    apiGet("list").then(function (data) {
+      backendBusy = false;
+      if (!data || data.ok === false) {
+        setConnStatus("Couldn't load — " + (data && data.error ? data.error : "check the URL"), false);
+        return;
+      }
+      state.registrants = data.registrants.map(mapServerRegistrant);
+      state.activities = data.activities;
+      setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
+      render();
+    }).catch(function (err) {
+      backendBusy = false;
+      setConnStatus("Couldn't reach that URL — " + err, false);
+    });
+  }
+
+  function connectBackend() {
+    var input = document.getElementById("settingsUrlInput");
+    var url = (input && input.value || "").trim();
+    if (!url) { setConnStatus("Paste your Apps Script /exec URL above first", false); return; }
+    BACKEND_URL = url;
+    settingsUrlDraft = url;
+    try { localStorage.setItem("qrCheckinBackendUrl", url); } catch (e) { /* fine without persistence */ }
+    loadFromBackend();
+  }
+
+  var initialState = {
+    registrants: [
+      { id: "YSA-0231", name: "Emma Whitfield", ward: "Wilston Ward", stake: "Beenleigh Stake", dietary: null, checkedIn: true, checkedInAt: "9:14 AM", bookings: ["futsal"], qrPrinted: true, qrPrintedAt: "3 Aug, 4:02 PM", lost: false, lostAt: null, needsPickup: true, pickupTime: "10:00 AM", team: "Team Blue" },
+      { id: "YSA-0187", name: "Josh Tanuvasa", ward: "Springwood Ward", stake: "Logan Stake", dietary: "Gluten-free", checkedIn: false, checkedInAt: null, bookings: [], qrPrinted: true, qrPrintedAt: "3 Aug, 4:02 PM", lost: false, lostAt: null, needsPickup: false, pickupTime: null, team: "Team Red" },
+      { id: "YSA-0264", name: "Priya Nair", ward: "Loganholme Ward", stake: "Beenleigh Stake", dietary: null, checkedIn: false, checkedInAt: null, bookings: [], qrPrinted: false, qrPrintedAt: null, lost: false, lostAt: null, needsPickup: true, pickupTime: "9:00 AM", team: "Team Blue" },
+      { id: "YSA-0119", name: "Caleb Osei", ward: "Redbank Plains Ward", stake: "Ipswich Stake", dietary: "Nut allergy", checkedIn: true, checkedInAt: "10:02 AM", bookings: [], qrPrinted: false, qrPrintedAt: null, lost: true, lostAt: "11:20 AM", needsPickup: true, pickupTime: "11:00 AM", team: "Team Green" },
+      { id: "YSA-0302", name: "Grace Kolinio", ward: "Beenleigh Ward", stake: "Logan Stake", dietary: "Vegetarian", checkedIn: false, checkedInAt: null, bookings: ["talent"], qrPrinted: false, qrPrintedAt: null, lost: false, lostAt: null, needsPickup: false, pickupTime: null, team: "Team Red" },
+      { id: "YSA-0145", name: "Liam Fatupaito", ward: "Goodna Ward", stake: "Ipswich Stake", dietary: null, checkedIn: false, checkedInAt: null, bookings: [], qrPrinted: false, qrPrintedAt: null, lost: false, lostAt: null, needsPickup: true, pickupTime: "9:00 AM", team: "Team Green" }
+    ],
+    activities: [
+      { id: "escape", name: "Escape Room Challenge", time: "Sat 10:00 AM", capacity: 20, otherBookings: 11 },
+      { id: "choir", name: "Worship Night Rehearsal", time: "Sat 1:00 PM", capacity: 15, otherBookings: 13 },
+      { id: "futsal", name: "Sports Tournament: Futsal", time: "Sat 2:30 PM", capacity: 24, otherBookings: 15 },
+      { id: "service", name: "Service Project: Care Packages", time: "Sun 9:00 AM", capacity: 30, otherBookings: 9 },
+      { id: "talent", name: "Talent Show Sign-ups", time: "Sat 7:30 PM", capacity: 12, otherBookings: 11 },
+      { id: "hike", name: "Hike & Lookout Walk", time: "Sun 7:00 AM", capacity: 16, otherBookings: 6 }
+    ]
+  };
+
+  var state = clone(initialState);
+  var view = defaultView();
+  var lastUpdatedRegistrant = null;
+  var lastUpdatedActivity = null;
+  var lastPrintedBatch = [];
+
+  // camera plumbing (kept outside `view` since it holds live browser handles, not data)
+  var cameraStream = null;
+  var cameraRaf = null;
+  var cameraHiddenCanvas = null;
+  var cameraUnrecognizedTimer = null;
+
+  function defaultView() {
+    return {
+      activeTab: "people",     // "dashboard" | "people" | "other" | "print" — which bottom tab is selected
+      screen: "tab",           // "tab" | "camera" | "scanned" | "pin"
+      registrantId: null,
+      personTab: "checkin",    // sub-tab within the scanned card: "checkin" | "activities"
+      otherPage: null,         // which page is open within "Other": null (landing) | "airport" | "dietary" | "teams"
+      pinError: false,
+      staffUnlocked: true,
+      peopleSearch: "",
+      printSearch: "",
+      selected: new Set(),
+      printToast: ""
+    };
+  }
+
+  function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
+  function byId(arr, id) { for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) return arr[i]; } return null; }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  function spotsTaken(activity) {
+    var mine = 0;
+    for (var i = 0; i < state.registrants.length; i++) {
+      if (state.registrants[i].bookings.indexOf(activity.id) !== -1) mine++;
+    }
+    return activity.otherBookings + mine;
+  }
+
+  function capacityState(activity) {
+    var taken = spotsTaken(activity);
+    var ratio = taken / activity.capacity;
+    var status = "ok";
+    if (taken >= activity.capacity) status = "full";
+    else if (ratio >= 0.8) status = "near";
+    return { taken: taken, ratio: Math.min(ratio, 1), status: status };
+  }
+
+  function timeToMinutes(t) {
+    if (!t) return 0;
+    var m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!m) return 0;
+    var h = parseInt(m[1], 10) % 12;
+    var min = parseInt(m[2], 10);
+    if (/PM/i.test(m[3])) h += 12;
+    return h * 60 + min;
+  }
+
+  function nowTime() {
+    var d = new Date();
+    var h = d.getHours() % 12; if (h === 0) h = 12;
+    var m = d.getMinutes();
+    var ampm = d.getHours() >= 12 ? "PM" : "AM";
+    return h + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
+  }
+
+  // ---------- camera helpers ----------
+
+  function stopCamera() {
+    if (cameraRaf) { cancelAnimationFrame(cameraRaf); cameraRaf = null; }
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function (t) { t.stop(); });
+      cameraStream = null;
+    }
+    if (cameraUnrecognizedTimer) { clearTimeout(cameraUnrecognizedTimer); cameraUnrecognizedTimer = null; }
+  }
+
+  function startCamera() {
+    var video = document.getElementById("cameraVideo");
+    var msgEl = document.getElementById("cameraMsg");
+    var errEl = document.getElementById("cameraErrorBox");
+    if (!video) return;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (errEl) errEl.textContent = "This browser can't offer camera access here. Use the field below to type the ID printed on the lanyard instead.";
+      return;
+    }
+    if (typeof jsQR !== "function") {
+      if (errEl) errEl.textContent = "The QR-reading library didn't load in this preview. Use the field below to type the ID instead.";
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(function (stream) {
+        if (view.screen !== "camera") { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        cameraStream = stream;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true");
+        video.play();
+        cameraHiddenCanvas = document.createElement("canvas");
+        if (msgEl) msgEl.textContent = "Point the camera at a lanyard's QR code";
+        cameraRaf = requestAnimationFrame(tickCamera);
+      })
+      .catch(function (err) {
+        var msg = "Couldn't access the camera. Use the field below to type the ID instead.";
+        if (err && err.name === "NotAllowedError") msg = "Camera permission was denied. Allow camera access, or type the ID below instead.";
+        if (err && err.name === "NotFoundError") msg = "No camera was found on this device. Type the ID below instead.";
+        if (errEl) errEl.textContent = msg;
+      });
+  }
+
+  function tickCamera() {
+    if (view.screen !== "camera" || !cameraStream) return;
+    var video = document.getElementById("cameraVideo");
+    if (video && video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth) {
+      var scale = Math.min(1, 480 / video.videoWidth);
+      var w = Math.max(1, Math.round(video.videoWidth * scale));
+      var h = Math.max(1, Math.round(video.videoHeight * scale));
+      cameraHiddenCanvas.width = w;
+      cameraHiddenCanvas.height = h;
+      var ctx = cameraHiddenCanvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, w, h);
+      try {
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var code = jsQR(imageData.data, w, h, { inversionAttempts: "dontInvert" });
+        if (code && code.data) {
+          handleDecodedId(code.data.trim());
+          return; // handleDecodedId decides whether to keep scanning
+        }
+      } catch (e) { /* frame not ready yet — ignore and retry */ }
+    }
+    cameraRaf = requestAnimationFrame(tickCamera);
+  }
+
+  function handleDecodedId(text) {
+    var r = byId(state.registrants, text);
+    if (r) {
+      stopCamera();
+      scan(r.id);
+      return;
+    }
+    var msgEl = document.getElementById("cameraMsg");
+    if (msgEl) msgEl.textContent = "That code isn't recognized in this Sheet — try again";
+    if (cameraUnrecognizedTimer) clearTimeout(cameraUnrecognizedTimer);
+    cameraUnrecognizedTimer = setTimeout(function () {
+      var m = document.getElementById("cameraMsg");
+      if (m && view.screen === "camera") m.textContent = "Point the camera at a lanyard's QR code";
+    }, 1800);
+    cameraRaf = requestAnimationFrame(tickCamera);
+  }
+
+  function makeQrCanvas(text, size) {
+    var canvas = document.createElement("canvas");
+    if (typeof QRious === "function") {
+      /* eslint-disable no-new */
+      new QRious({ element: canvas, value: text, size: size, background: "#ffffff", foreground: "#161b1e", level: "M" });
+    } else {
+      canvas.width = size; canvas.height = size;
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#161b1e"; ctx.font = "10px monospace";
+      ctx.fillText(text, 6, size / 2);
+    }
+    return canvas;
+  }
+
+  // ---------- navigation / actions ----------
+
+  function selectTab(tabName) {
+    stopCamera();
+    view.activeTab = tabName;
+    view.screen = "tab";
+    if (tabName === "other") view.otherPage = null;
+    render();
+  }
+
+  function openCamera() { stopCamera(); view.screen = "camera"; render(); startCamera(); }
+
+  function cancelCamera() { stopCamera(); view.screen = "tab"; render(); }
+
+  function backFromScanned() { view.screen = "tab"; render(); }
+
+  function pinBack() { view.activeTab = "people"; view.screen = "tab"; render(); }
+
+  function setPeopleSearch(term) {
+    view.peopleSearch = term;
+    render();
+    var el = document.getElementById("peopleSearch");
+    if (el) { el.focus(); var v = el.value; el.setSelectionRange(v.length, v.length); }
+  }
+
+  function submitManualId(idRaw) {
+    var id = (idRaw || "").trim().toUpperCase();
+    var errEl = document.getElementById("manualError");
+    if (!id) { if (errEl) errEl.textContent = "Enter the ID printed on the lanyard."; return; }
+    var r = byId(state.registrants, id);
+    if (!r) { if (errEl) errEl.textContent = "No registrant found with ID " + id + "."; return; }
+    stopCamera();
+    scan(r.id);
+  }
+
+  function scan(registrantId) {
+    stopCamera();
+    view.screen = "scanned";
+    view.registrantId = registrantId;
+    view.personTab = "checkin";
+    render();
+  }
+
+  function checkIn(registrantId) {
+    var r = byId(state.registrants, registrantId);
+    if (!r || r.checkedIn) return;
+    if (BACKEND_URL) {
+      setConnStatus("Checking in…", false);
+      apiPost({ action: "checkin", id: registrantId }).then(function (res) {
+        if (res && res.ok) {
+          Object.assign(r, mapServerRegistrant(res.registrant));
+          lastUpdatedRegistrant = registrantId;
+          setConnStatus("Connected — live off the test Sheet", true);
+        } else {
+          setConnStatus("Check-in failed — " + (res && res.error), false);
+        }
+        render();
+      }).catch(function (err) { setConnStatus("Check-in failed — " + err, false); render(); });
+      return;
+    }
+    r.checkedIn = true;
+    r.checkedInAt = nowTime();
+    lastUpdatedRegistrant = registrantId;
+    render();
+  }
+
+  function toggleLost(registrantId) {
+    var r = byId(state.registrants, registrantId);
+    if (!r) return;
+    if (BACKEND_URL) {
+      setConnStatus("Updating…", false);
+      apiPost({ action: "toggleLost", id: registrantId }).then(function (res) {
+        if (res && res.ok) {
+          Object.assign(r, mapServerRegistrant(res.registrant));
+          lastUpdatedRegistrant = registrantId;
+          setConnStatus("Connected — live off the test Sheet", true);
+        } else {
+          setConnStatus("Update failed — " + (res && res.error), false);
+        }
+        render();
+      }).catch(function (err) { setConnStatus("Update failed — " + err, false); render(); });
+      return;
+    }
+    r.lost = !r.lost;
+    r.lostAt = r.lost ? nowTime() : null;
+    lastUpdatedRegistrant = registrantId;
+    render();
+  }
+
+  function book(registrantId, activityId) {
+    var r = byId(state.registrants, registrantId);
+    var a = byId(state.activities, activityId);
+    if (!r || !a) return;
+    if (r.bookings.indexOf(activityId) !== -1) return;
+    var cap = capacityState(a);
+    if (cap.taken >= a.capacity) return; // filled just before the tap — mirrors the "capacity hit" branch
+    if (BACKEND_URL) {
+      setConnStatus("Booking…", false);
+      apiPost({ action: "book", id: registrantId, activityId: activityId }).then(function (res) {
+        if (res && res.ok) {
+          Object.assign(r, mapServerRegistrant(res.registrant));
+          lastUpdatedRegistrant = registrantId;
+          lastUpdatedActivity = activityId;
+          setConnStatus("Connected — live off the test Sheet", true);
+        } else {
+          setConnStatus(res && res.error === "full" ? "That activity just filled up" : "Booking failed — " + (res && res.error), false);
+        }
+        render();
+      }).catch(function (err) { setConnStatus("Booking failed — " + err, false); render(); });
+      return;
+    }
+    r.bookings.push(activityId);
+    lastUpdatedRegistrant = registrantId;
+    lastUpdatedActivity = activityId;
+    render();
+  }
+
+  function setPersonTab(tab) { view.personTab = tab; render(); }
+
+  function setOtherPage(page) { view.otherPage = page; render(); }
+
+  function otherBack() { view.otherPage = null; render(); }
+
+  function submitPin(value) {
+    if (value === DEMO_PIN) {
+      view.staffUnlocked = true;
+      view.activeTab = "print";
+      view.screen = "tab";
+      render();
+    } else {
+      view.pinError = true;
+      render();
+      var el = document.getElementById("pinInput");
+      if (el) { el.focus(); el.select(); }
+    }
+  }
+
+  function toggleSelect(id) {
+    if (view.selected.has(id)) view.selected.delete(id); else view.selected.add(id);
+    render();
+  }
+
+  function selectAllUnprinted() {
+    state.registrants.forEach(function (r) { if (!r.qrPrinted) view.selected.add(r.id); });
+    render();
+  }
+
+  function clearSelection() { view.selected.clear(); render(); }
+
+  function setPrintSearch(term) {
+    view.printSearch = term;
+    render();
+    var el = document.getElementById("printSearch");
+    if (el) { el.focus(); var v = el.value; el.setSelectionRange(v.length, v.length); }
+  }
+
+  function renderPrintCards(ids) {
+    var container = document.getElementById("printSheet");
+    container.innerHTML = "";
+    ids.forEach(function (id) {
+      var r = byId(state.registrants, id);
+      if (!r) return;
+      var card = document.createElement("div");
+      card.className = "print-card";
+      card.appendChild(makeQrCanvas(r.id, 200));
+      if (r.dietary) {
+        var dietEl = document.createElement("div");
+        dietEl.className = "print-card-dietary";
+        dietEl.innerHTML = "&#127869; DIETARY";
+        card.appendChild(dietEl);
+      }
+      var nameEl = document.createElement("div"); nameEl.className = "print-card-name"; nameEl.textContent = r.name;
+      var wardEl = document.createElement("div"); wardEl.className = "print-card-ward"; wardEl.textContent = r.ward + " · " + r.stake;
+      var idEl = document.createElement("div"); idEl.className = "print-card-id"; idEl.textContent = r.id;
+      card.appendChild(nameEl); card.appendChild(wardEl); card.appendChild(idEl);
+      container.appendChild(card);
+    });
+  }
+
+  function finishPrint(ids) {
+    lastPrintedBatch = ids.slice();
+    view.printToast = ids.length + (ids.length === 1 ? " lanyard marked as printed." : " lanyards marked as printed.");
+    view.selected = new Set();
+    document.body.classList.add("printing");
+    window.print();
+  }
+
+  function generateAndPrint() {
+    var ids = Array.from(view.selected);
+    if (!ids.length) return;
+    renderPrintCards(ids);
+    if (BACKEND_URL) {
+      setConnStatus("Marking printed…", false);
+      apiPost({ action: "markPrinted", ids: ids }).then(function (res) {
+        if (res && res.ok) {
+          var stamp = nowTime();
+          ids.forEach(function (id) {
+            var r = byId(state.registrants, id);
+            if (r) { r.qrPrinted = true; r.qrPrintedAt = stamp; }
+          });
+          setConnStatus("Connected — live off the test Sheet", true);
+        } else {
+          setConnStatus("Marking printed failed — " + (res && res.error), false);
+        }
+        finishPrint(ids);
+      }).catch(function (err) { setConnStatus("Marking printed failed — " + err, false); finishPrint(ids); });
+      return;
+    }
+    ids.forEach(function (id) {
+      var r = byId(state.registrants, id);
+      if (r) { r.qrPrinted = true; r.qrPrintedAt = nowTime(); }
+    });
+    finishPrint(ids);
+  }
+
+  window.addEventListener("afterprint", function () {
+    document.body.classList.remove("printing");
+    render();
+  });
+
+  function resetDemo() {
+    if (BACKEND_URL) { loadFromBackend(); return; }
+    stopCamera();
+    state = clone(initialState);
+    view = defaultView();
+    lastUpdatedRegistrant = null;
+    lastUpdatedActivity = null;
+    lastPrintedBatch = [];
+    render();
+  }
+
+  // ---------- rendering: phone screen ----------
+
+  function renderScreen() {
+    var el = document.getElementById("screen");
+    var caption = document.getElementById("phoneCaption");
+
+    if (view.screen === "tab" && view.activeTab === "dashboard") {
+      caption.textContent = "A live snapshot of the Sheet, recalculated fresh every time this tab opens.";
+      var totalCount = state.registrants.length;
+      var checkedInCount = state.registrants.filter(function (r) { return r.checkedIn; }).length;
+      var pct = totalCount ? Math.round((checkedInCount / totalCount) * 100) : 0;
+      var lostList = state.registrants.filter(function (r) { return r.lost; });
+
+      var lostPanel;
+      if (lostList.length) {
+        lostPanel = '<div class="lost-panel is-alert">' +
+          '<div class="lost-panel-head"><span>&#128680; Currently lost</span><span class="pill pill-critical pill-sm">' + lostList.length + '</span></div>' +
+          lostList.map(function (r) {
+            return '<div class="lost-row">' +
+              '<button class="lost-row-info" data-action="scan" data-id="' + r.id + '" type="button">' +
+                '<span class="lookup-name">' + esc(r.name) + '</span>' +
+                '<span class="lookup-meta">' + esc(r.ward) + ' &middot; reported ' + esc(r.lostAt) + '</span>' +
+              '</button>' +
+              '<button class="btn btn-sm" data-action="toggleLost" data-id="' + r.id + '" type="button">Found</button>' +
+            '</div>';
+          }).join("") +
+        '</div>';
+      } else {
+        lostPanel = '<div class="lost-panel">' +
+          '<div class="lost-panel-head"><span>Currently lost</span><span class="pill pill-neutral pill-sm">0</span></div>' +
+          '<div class="empty-note" style="padding:4px">No one is currently reported lost.</div>' +
+        '</div>';
+      }
+
+      el.innerHTML =
+        '<h2 class="screen-title">Dashboard</h2>' +
+        lostPanel +
+        '<div class="stat-grid">' +
+          '<div class="stat-tile"><span class="stat-value mono">' + totalCount + '</span><span class="stat-label">Registered</span></div>' +
+          '<div class="stat-tile"><span class="stat-value mono">' + checkedInCount + '</span><span class="stat-label">Checked in</span></div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<div class="capacity-row">' +
+            '<div class="capacity-track"><div class="capacity-fill" style="width:' + pct + '%"></div></div>' +
+            '<span class="capacity-label mono">' + pct + '%</span>' +
+          '</div>' +
+          '<div class="id-print-note" style="margin-top:6px">' + checkedInCount + ' of ' + totalCount + ' registrants checked in so far</div>' +
+        '</div>';
+      return;
+    }
+
+    if (view.screen === "tab" && view.activeTab === "other") {
+      var rowHtml = function (r, metaText) {
+        return '<button class="lookup-item" data-action="scan" data-id="' + r.id + '">' +
+          '<span class="lookup-name">' + esc(r.name) + '</span>' +
+          '<span class="lookup-meta">' + metaText + '</span>' +
+        '</button>';
+      };
+
+      var pickupCount = state.registrants.filter(function (r) { return r.needsPickup; }).length;
+      var dietCount = state.registrants.filter(function (r) { return r.dietary; }).length;
+      var teamNamesAll = {};
+      state.registrants.forEach(function (r) { teamNamesAll[r.team || "Unassigned"] = true; });
+      var teamGroupCount = Object.keys(teamNamesAll).length;
+
+      if (!view.otherPage) {
+        caption.textContent = "Quick-reference lists for specific jobs — pick one to open it.";
+        el.innerHTML =
+          '<h2 class="screen-title">Other</h2>' +
+          '<div class="lanyard-list">' +
+            '<button class="lookup-item" data-action="otherPage" data-page="airport" type="button">' +
+              '<span class="lookup-name">Airport pickup list</span>' +
+              '<span class="lookup-meta">' + pickupCount + ' need a pickup</span>' +
+            '</button>' +
+            '<button class="lookup-item" data-action="otherPage" data-page="dietary" type="button">' +
+              '<span class="lookup-name">Dietary requirements</span>' +
+              '<span class="lookup-meta">' + dietCount + ' with a requirement</span>' +
+            '</button>' +
+            '<button class="lookup-item" data-action="otherPage" data-page="teams" type="button">' +
+              '<span class="lookup-name">Team rosters</span>' +
+              '<span class="lookup-meta">' + teamGroupCount + ' teams</span>' +
+            '</button>' +
+          '</div>';
+        return;
+      }
+
+      var pageTitle = view.otherPage === "airport" ? "Airport pickup" : (view.otherPage === "dietary" ? "Dietary requirements" : "Team rosters");
+      caption.textContent = "Tap Back to return to the other lists.";
+
+      var body = "";
+      if (view.otherPage === "airport") {
+        var pickups = state.registrants.filter(function (r) { return r.needsPickup; });
+        pickups.sort(function (a, b) { return timeToMinutes(a.pickupTime) - timeToMinutes(b.pickupTime); });
+        if (pickups.length) {
+          var slots = [];
+          pickups.forEach(function (r) {
+            var slot = slots.length && slots[slots.length - 1].time === r.pickupTime ? slots[slots.length - 1] : null;
+            if (!slot) { slot = { time: r.pickupTime, people: [] }; slots.push(slot); }
+            slot.people.push(r);
+          });
+          body = '<div class="list-total">' + pickups.length + ' need airport pickup</div>' +
+            slots.map(function (slot) {
+              return '<div class="list-group-head">' + esc(slot.time) + ' &middot; ' + slot.people.length + '</div>' +
+                '<div class="lanyard-list">' + slot.people.map(function (r) { return rowHtml(r, esc(r.ward)); }).join("") + '</div>';
+            }).join("");
+        } else {
+          body = '<div class="empty-note">No one currently needs airport pickup.</div>';
+        }
+      } else if (view.otherPage === "dietary") {
+        var withDiet = state.registrants.filter(function (r) { return r.dietary; });
+        body = withDiet.length
+          ? '<div class="list-total">' + withDiet.length + ' with a dietary requirement</div>' +
+            '<div class="lanyard-list">' + withDiet.map(function (r) { return rowHtml(r, esc(r.ward) + ' &middot; ' + esc(r.dietary)); }).join("") + '</div>'
+          : '<div class="empty-note">No dietary requirements on file.</div>';
+      } else if (view.otherPage === "teams") {
+        var teamMap = {};
+        state.registrants.forEach(function (r) {
+          var key = r.team || "Unassigned";
+          if (!teamMap[key]) teamMap[key] = [];
+          teamMap[key].push(r);
+        });
+        var teamNames = Object.keys(teamMap).sort();
+        body = teamNames.map(function (name) {
+          var people = teamMap[name];
+          return '<div class="list-group-head">' + esc(name) + ' &middot; ' + people.length + '</div>' +
+            '<div class="lanyard-list">' + people.map(function (r) { return rowHtml(r, esc(r.ward)); }).join("") + '</div>';
+        }).join("");
+      }
+
+      el.innerHTML =
+        '<div class="screen-head-row">' +
+          '<h2 class="screen-title">' + esc(pageTitle) + '</h2>' +
+          '<button class="back-link" data-action="otherBack" type="button">Back</button>' +
+        '</div>' + body;
+      return;
+    }
+
+    if (view.screen === "tab" && view.activeTab === "people") {
+      caption.textContent = "Every registrant, searchable by name, ward, or stake — live off the shared Sheet.";
+      var pterm = view.peopleSearch.trim().toLowerCase();
+      var presults = state.registrants.filter(function (r) {
+        if (!pterm) return true;
+        return r.name.toLowerCase().indexOf(pterm) !== -1 ||
+          r.ward.toLowerCase().indexOf(pterm) !== -1 ||
+          r.stake.toLowerCase().indexOf(pterm) !== -1;
+      });
+      var prows = presults.length
+        ? presults.map(function (r) {
+            var lostBadge = r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '';
+            return '<button class="lookup-item" data-action="scan" data-id="' + r.id + '">' +
+              '<span class="lookup-name">' + esc(r.name) + lostBadge + '</span>' +
+              '<span class="lookup-meta">' + esc(r.ward) + ' &middot; ' + esc(r.stake) + '</span>' +
+            '</button>';
+          }).join("")
+        : '<div class="empty-note">No one matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;.</div>';
+
+      el.innerHTML =
+        '<h2 class="screen-title">People</h2>' +
+        '<input class="text-input" id="peopleSearch" type="text" placeholder="Search by name, ward, or stake" value="' + esc(view.peopleSearch) + '">' +
+        '<div class="lanyard-list">' + prows + '</div>';
+
+      var peopleInput = document.getElementById("peopleSearch");
+      if (peopleInput) {
+        peopleInput.focus();
+        var pv = peopleInput.value; peopleInput.setSelectionRange(pv.length, pv.length);
+        peopleInput.addEventListener("input", function () { setPeopleSearch(peopleInput.value); });
+      }
+      return;
+    }
+
+    if (view.screen === "tab" && view.activeTab === "print") {
+      caption.textContent = "Generate and print QR lanyards — printing marks them Printed straight in the Sheet.";
+      var term = view.printSearch.trim().toLowerCase();
+      var list = state.registrants.filter(function (r) {
+        if (!term) return true;
+        return r.name.toLowerCase().indexOf(term) !== -1 || r.ward.toLowerCase().indexOf(term) !== -1;
+      });
+      var unprintedCount = state.registrants.filter(function (r) { return !r.qrPrinted; }).length;
+
+      var rows = list.length
+        ? list.map(function (r) {
+            var printedPill = r.qrPrinted
+              ? '<span class="pill pill-success pill-sm">Printed</span>'
+              : '<span class="pill pill-neutral pill-sm">Not printed</span>';
+            return '<label class="print-row">' +
+              '<input type="checkbox" data-action="toggleSelect" data-id="' + r.id + '"' + (view.selected.has(r.id) ? " checked" : "") + '>' +
+              '<span class="print-row-text"><span class="print-row-name">' + esc(r.name) + '</span><span class="print-row-ward">' + esc(r.ward) + '</span></span>' +
+              printedPill +
+            '</label>';
+          }).join("")
+        : '<div class="empty-note">No registrants match &ldquo;' + esc(view.printSearch) + '&rdquo;.</div>';
+
+      el.innerHTML =
+        '<h2 class="screen-title">Print lanyards</h2>' +
+        (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
+        '<div class="print-toolbar">' +
+          '<input class="text-input" id="printSearch" type="text" placeholder="Search by name or ward" value="' + esc(view.printSearch) + '">' +
+          '<div class="print-summary">' +
+            '<span>' + unprintedCount + ' not yet printed</span>' +
+            '<button class="btn" data-action="selectAllUnprinted" type="button" style="padding:4px 10px;font-size:12px">Select all not printed</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="print-list">' + rows + '</div>' +
+        '<div class="print-actionbar">' +
+          '<div class="print-summary" style="margin-bottom:8px">' +
+            '<span>' + view.selected.size + ' selected</span>' +
+            (view.selected.size ? '<button class="back-link" data-action="clearSelection" type="button">Clear</button>' : '<span></span>') +
+          '</div>' +
+          '<button class="btn btn-primary btn-block" data-action="generatePrint" type="button"' + (view.selected.size ? '' : ' disabled') + '>' +
+            'Generate &amp; print (' + view.selected.size + ')' +
+          '</button>' +
+        '</div>';
+
+      var searchInput = document.getElementById("printSearch");
+      if (searchInput) {
+        searchInput.addEventListener("input", function () { setPrintSearch(searchInput.value); });
+      }
+      return;
+    }
+
+    if (view.screen === "tab" && view.activeTab === "settings") {
+      caption.textContent = "Point this app at your Apps Script backend to work off the live Sheet.";
+      el.innerHTML =
+        '<h2 class="screen-title">Settings</h2>' +
+        '<div class="card">' +
+          '<label for="settingsUrlInput" class="screen-sub" style="margin:0 0 6px">Apps Script /exec URL</label>' +
+          '<input class="text-input mono" id="settingsUrlInput" type="text" placeholder="Paste your Apps Script /exec URL here" value="' + esc(settingsUrlDraft) + '" autocomplete="off" style="width:100%">' +
+          '<div style="display:flex;gap:10px;margin-top:10px">' +
+            '<button class="btn btn-primary" id="connectBtn" type="button">Connect</button>' +
+            '<button class="btn" id="resetBtn" type="button">Reload</button>' +
+          '</div>' +
+          '<div class="screen-sub mono" id="settingsStatusText" style="margin-top:10px">' + esc(lastStatusText) + '</div>' +
+        '</div>';
+
+      var settingsInput = document.getElementById("settingsUrlInput");
+      if (settingsInput) {
+        settingsInput.addEventListener("input", function () { settingsUrlDraft = settingsInput.value; });
+      }
+      var statusEl = document.getElementById("settingsStatusText");
+      if (statusEl) statusEl.style.color = connectedOk ? "var(--success)" : "";
+      return;
+    }
+
+    if (view.screen === "camera") {
+      caption.textContent = "Real camera + live QR decoding, running in your browser.";
+      el.innerHTML =
+        '<button class="back-link" data-action="cancelCamera" type="button">&larr; Cancel</button>' +
+        '<div id="cameraErrorBox" class="camera-error" style="display:none"></div>' +
+        '<div class="camera-frame">' +
+          '<video id="cameraVideo" autoplay muted playsinline></video>' +
+          '<div class="camera-reticle"></div>' +
+          '<div class="camera-msg" id="cameraMsg">Starting camera&hellip;</div>' +
+        '</div>' +
+        '<div class="manual-entry">' +
+          '<label for="manualId">Or type the ID printed on the lanyard</label>' +
+          '<div class="manual-entry-row">' +
+            '<input class="text-input mono" id="manualId" type="text" placeholder="e.g. YSA-0231" autocomplete="off" autocapitalize="characters">' +
+            '<button class="btn" data-action="manualGo" type="button">Go</button>' +
+          '</div>' +
+          '<div class="field-error" id="manualError"></div>' +
+        '</div>';
+
+      // camera-error box is styled inline as hidden; startCamera()/errors will populate + reveal it
+      var errBox = document.getElementById("cameraErrorBox");
+      var observer = new MutationObserver(function () {
+        errBox.style.display = errBox.textContent ? "block" : "none";
+      });
+      observer.observe(errBox, { childList: true, characterData: true, subtree: true });
+
+      var manualInput = document.getElementById("manualId");
+      if (manualInput) {
+        manualInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") submitManualId(manualInput.value);
+        });
+      }
+      return;
+    }
+
+    if (view.screen === "scanned") {
+      caption.textContent = "The volunteer sees the same result no matter whose phone scanned it — it's read live off the shared Sheet.";
+      var r = byId(state.registrants, view.registrantId);
+      if (!r) { view.screen = "tab"; return renderScreen(); }
+
+      var checkinPill = r.checkedIn
+        ? '<span class="pill pill-success"><span class="pill-dot"></span>Checked in ' + esc(r.checkedInAt) + '</span>'
+        : '<span class="pill pill-neutral"><span class="pill-dot"></span>Not checked in</span>';
+
+      var flags = "";
+      if (r.dietary) flags = '<div class="flag-row"><span class="pill pill-warning">' + esc(r.dietary) + '</span></div>';
+
+      var printNote = r.qrPrinted
+        ? "Lanyard printed " + esc(r.qrPrintedAt)
+        : "Lanyard not yet printed";
+
+      var idCard =
+        '<div class="card">' +
+          '<div class="id-row">' +
+            '<div>' +
+              '<div class="id-name">' + esc(r.name) + '</div>' +
+              '<div class="id-meta">' + esc(r.ward) + ' &middot; ' + esc(r.stake) + '</div>' +
+            '</div>' +
+            checkinPill +
+          '</div>' +
+          flags +
+          '<div class="id-code mono">Scanned ID ' + esc(r.id) + '</div>' +
+          '<div class="id-print-note">' + printNote + '</div>' +
+        '</div>';
+
+      var lostSection = r.lost
+        ? '<div class="alert-lost">&#128680; Reported lost at ' + esc(r.lostAt) + '</div>' +
+          '<button class="btn btn-block" data-action="toggleLost" data-id="' + r.id + '" type="button">Mark as found</button>'
+        : '<button class="btn btn-block btn-danger" data-action="toggleLost" data-id="' + r.id + '" type="button">&#128680; Mark as lost</button>';
+
+      var tabs =
+        '<div class="tabs">' +
+          '<button class="tab-btn' + (view.personTab === "checkin" ? " active" : "") + '" data-action="personTab" data-tab="checkin" type="button">Check-in</button>' +
+          '<button class="tab-btn' + (view.personTab === "activities" ? " active" : "") + '" data-action="personTab" data-tab="activities" type="button">Book activity</button>' +
+        '</div>';
+
+      var body = "";
+      if (view.personTab === "checkin") {
+        body = r.checkedIn
+          ? '<button class="btn btn-block" disabled>Already checked in</button>'
+          : '<button class="btn btn-primary btn-block" data-action="checkin" data-id="' + r.id + '" type="button">Check in</button>';
+      } else {
+        body = '<div class="lanyard-list">' + state.activities.map(function (a) {
+          var cap = capacityState(a);
+          var booked = r.bookings.indexOf(a.id) !== -1;
+          var fillClass = cap.status === "full" ? "is-critical" : (cap.status === "near" ? "is-warning" : "");
+          var statusPill;
+          if (booked) statusPill = '<span class="pill pill-success">Booked</span>';
+          else if (cap.status === "full") statusPill = '<span class="pill pill-critical">Full</span>';
+          else if (cap.status === "near") statusPill = '<span class="pill pill-warning">' + (a.capacity - cap.taken) + ' left</span>';
+          else statusPill = '<span class="pill pill-neutral">' + (a.capacity - cap.taken) + ' left</span>';
+
+          var actionBtn = booked
+            ? ""
+            : (cap.status === "full"
+              ? '<button class="btn btn-block" disabled type="button">Just filled up</button>'
+              : '<button class="btn btn-primary btn-block" data-action="book" data-id="' + r.id + '" data-activity="' + a.id + '" type="button">Book this activity</button>');
+
+          return '<div class="activity-item">' +
+            '<div class="activity-head">' +
+              '<div><div class="activity-name">' + esc(a.name) + '</div><div class="activity-time">' + esc(a.time) + '</div></div>' +
+              statusPill +
+            '</div>' +
+            '<div class="capacity-row">' +
+              '<div class="capacity-track"><div class="capacity-fill ' + fillClass + '" style="width:' + (cap.ratio * 100) + '%"></div></div>' +
+              '<span class="capacity-label mono">' + cap.taken + ' / ' + a.capacity + '</span>' +
+            '</div>' +
+            actionBtn +
+          '</div>';
+        }).join("") + '</div>';
+      }
+
+      var qrCard =
+        '<div class="card person-qr">' +
+          '<div class="person-qr-box" id="personQrBox"></div>' +
+          '<div class="person-qr-label mono">Lanyard QR &middot; ' + esc(r.id) + '</div>' +
+        '</div>';
+
+      el.innerHTML =
+        '<button class="back-link" data-action="backFromScanned" type="button">&larr; Back</button>' +
+        idCard + lostSection + tabs + body + qrCard;
+
+      var qrBox = document.getElementById("personQrBox");
+      if (qrBox) qrBox.appendChild(makeQrCanvas(r.id, 320));
+      return;
+    }
+
+    if (view.screen === "pin") {
+      caption.textContent = "The print tab is limited to committee members.";
+      el.innerHTML =
+        '<button class="back-link" data-action="pinBack" type="button">&larr; Back</button>' +
+        '<div class="pin-wrap">' +
+          '<div class="pin-lock">&#128274;</div>' +
+          '<h2 class="screen-title">Staff access</h2>' +
+          '<p class="screen-sub" style="margin:0">Enter the committee PIN to print lanyards.</p>' +
+          '<input class="pin-input" id="pinInput" type="password" inputmode="numeric" maxlength="8" autocomplete="off">' +
+          (view.pinError ? '<div class="field-error">Incorrect PIN — try again.</div>' : '<div class="field-error"></div>') +
+          '<button class="btn btn-primary" data-action="submitPin" type="button">Unlock</button>' +
+          '<div class="pin-hint">Demo PIN: ' + DEMO_PIN + ' (a real one will replace this before the convention)</div>' +
+        '</div>';
+      var pinInput = document.getElementById("pinInput");
+      if (pinInput) {
+        pinInput.focus();
+        pinInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") submitPin(pinInput.value);
+        });
+      }
+      return;
+    }
+  }
+
+  // ---------- rendering: sheet panels ----------
+
+  function renderSheets() {
+    var rBody = document.getElementById("registrantsBody");
+    rBody.innerHTML = state.registrants.map(function (r) {
+      var cls = r.id === lastUpdatedRegistrant || lastPrintedBatch.indexOf(r.id) !== -1 ? " class=\"just-updated\"" : "";
+      var printed = r.qrPrinted
+        ? '<span class="pill pill-success pill-sm">Yes</span>'
+        : '<span class="pill pill-neutral pill-sm">No</span>';
+      var checkin = r.checkedIn
+        ? '<span class="pill pill-success"><span class="pill-dot"></span>' + esc(r.checkedInAt) + '</span>'
+        : '<span class="pill pill-neutral"><span class="pill-dot"></span>Not yet</span>';
+      var bookings = r.bookings.length
+        ? r.bookings.map(function (aid) { var a = byId(state.activities, aid); return a ? esc(a.name) : aid; }).join(", ")
+        : '<span class="cell-muted">None</span>';
+      var lost = r.lost
+        ? '<span class="pill pill-critical pill-sm">&#128680; ' + esc(r.lostAt) + '</span>'
+        : '<span class="pill pill-neutral pill-sm">No</span>';
+      var dietaryCell = r.dietary
+        ? '<span class="pill pill-warning pill-sm">' + esc(r.dietary) + '</span>'
+        : '<span class="cell-muted">None</span>';
+      return "<tr" + cls + ">" +
+        "<td>" + esc(r.name) + "</td>" +
+        "<td class=\"cell-muted\">" + esc(r.ward) + "</td>" +
+        "<td class=\"cell-id mono\">" + esc(r.id) + "</td>" +
+        "<td>" + dietaryCell + "</td>" +
+        "<td>" + printed + "</td>" +
+        "<td>" + checkin + "</td>" +
+        "<td>" + lost + "</td>" +
+        "<td>" + bookings + "</td>" +
+      "</tr>";
+    }).join("");
+    lastPrintedBatch = [];
+
+    var aBody = document.getElementById("activitiesBody");
+    aBody.innerHTML = state.activities.map(function (a) {
+      var cap = capacityState(a);
+      var cls = a.id === lastUpdatedActivity ? " class=\"just-updated\"" : "";
+      var fillClass = cap.status === "full" ? "is-critical" : (cap.status === "near" ? "is-warning" : "");
+      var statusPill = cap.status === "full"
+        ? '<span class="pill pill-critical">Full</span>'
+        : (cap.status === "near" ? '<span class="pill pill-warning">Nearly full</span>' : '<span class="pill pill-success">Open</span>');
+      return "<tr" + cls + ">" +
+        "<td>" + esc(a.name) + "</td>" +
+        "<td class=\"cell-muted\">" + esc(a.time) + "</td>" +
+        "<td>" +
+          '<div class="capacity-row" style="min-width:140px">' +
+            '<div class="capacity-track"><div class="capacity-fill ' + fillClass + '" style="width:' + (cap.ratio * 100) + '%"></div></div>' +
+            '<span class="capacity-label mono">' + cap.taken + " / " + a.capacity + '</span>' +
+          '</div>' +
+        "</td>" +
+        "<td>" + statusPill + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  function updateTabBar() {
+    var dashboardBtn = document.getElementById("tabDashboardBtn");
+    var printBtn = document.getElementById("tabPrintBtn");
+    var peopleBtn = document.getElementById("tabPeopleBtn");
+    var otherBtn = document.getElementById("tabOtherBtn");
+    var settingsBtn = document.getElementById("tabSettingsBtn");
+    var scanBtn = document.getElementById("tabScanBtn");
+    var lock = document.getElementById("tabPrintLock");
+    if (dashboardBtn) dashboardBtn.classList.toggle("active", view.activeTab === "dashboard");
+    if (printBtn) printBtn.classList.toggle("active", view.activeTab === "print");
+    if (peopleBtn) peopleBtn.classList.toggle("active", view.activeTab === "people");
+    if (otherBtn) otherBtn.classList.toggle("active", view.activeTab === "other");
+    if (settingsBtn) settingsBtn.classList.toggle("active", view.activeTab === "settings");
+    if (scanBtn) scanBtn.classList.toggle("is-active", view.screen === "camera");
+    if (lock) lock.style.display = view.staffUnlocked ? "none" : "";
+  }
+
+  function render() {
+    renderScreen();
+    updateTabBar();
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-action]");
+    if (t) {
+      var action = t.getAttribute("data-action");
+      if (action === "scan") scan(t.getAttribute("data-id"));
+      else if (action === "selectTab") selectTab(t.getAttribute("data-tab"));
+      else if (action === "openCamera") openCamera();
+      else if (action === "cancelCamera") cancelCamera();
+      else if (action === "manualGo") submitManualId(document.getElementById("manualId").value);
+      else if (action === "checkin") checkIn(t.getAttribute("data-id"));
+      else if (action === "toggleLost") toggleLost(t.getAttribute("data-id"));
+      else if (action === "book") book(t.getAttribute("data-id"), t.getAttribute("data-activity"));
+      else if (action === "backFromScanned") backFromScanned();
+      else if (action === "personTab") setPersonTab(t.getAttribute("data-tab"));
+      else if (action === "otherPage") setOtherPage(t.getAttribute("data-page"));
+      else if (action === "otherBack") otherBack();
+      else if (action === "pinBack") pinBack();
+      else if (action === "submitPin") submitPin(document.getElementById("pinInput").value);
+      else if (action === "selectAllUnprinted") selectAllUnprinted();
+      else if (action === "clearSelection") clearSelection();
+      else if (action === "generatePrint") generateAndPrint();
+      return;
+    }
+    if (e.target && e.target.id === "resetBtn") resetDemo();
+    if (e.target && e.target.id === "connectBtn") connectBackend();
+  });
+
+  document.addEventListener("change", function (e) {
+    if (e.target && e.target.getAttribute && e.target.getAttribute("data-action") === "toggleSelect") {
+      toggleSelect(e.target.getAttribute("data-id"));
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target && e.target.id === "settingsUrlInput" && e.key === "Enter") connectBackend();
+  });
+
+  // ---------- init ----------
+  render();
+  if (BACKEND_URL) loadFromBackend();
+})();
+</script>
+
+</body></html>
