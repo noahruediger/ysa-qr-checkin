@@ -76,4 +76,3 @@ Anyone with the /exec URL can read the Sheet's data through it, including names,
 ## Printing lanyards
 
 The **Print** tab prints QR lanyard cards (82 × 130 mm, 4 per A4 sheet) with name, team and a dietary badge. Printed cards are marked in the Sheet so you can print only the new ones later.
-# ysa-qr-checkin
