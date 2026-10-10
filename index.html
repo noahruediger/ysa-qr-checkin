@@ -522,6 +522,18 @@
   }
   .pickup-check:hover { border-color: var(--accent); }
   .pickup-check.is-checked { background: var(--success); border-color: var(--success); color: #fff; }
+  /* ---------- Check-in checklist ---------- */
+  .task-list { display: flex; flex-direction: column; gap: 8px; }
+  .task-head { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; display: flex; justify-content: space-between; }
+  .task-row {
+    display: flex; align-items: stretch; gap: 8px;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-m);
+  }
+  .task-text { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 10px 12px; }
+  .task-name { font-size: 14px; font-weight: 500; }
+  .task-meta { font-size: 11.5px; color: var(--muted); }
+  .task-row.is-done .task-name { color: var(--muted); text-decoration: line-through; }
+  .task-row .pickup-check { margin: 6px 6px 6px 0; min-height: 44px; }
   /* ---------- Print layout presets ---------- */
   .preset-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
   .preset-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
@@ -555,6 +567,24 @@
     font-weight: 600;
     margin-top: 6px;
   }
+
+  .diet-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 8px; padding: 8px 12px;
+    background: var(--warning-tint); border: 1px solid var(--line); border-radius: var(--radius-m);
+    font-family: "Fraunces", Georgia, serif; font-size: 16px; font-weight: 600; color: var(--warning);
+  }
+  .diet-head-count { font-size: 15px; color: var(--ink); }
+  .diet-head-other { background: var(--critical-tint); color: var(--critical); }
+  .diet-other-item {
+    display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left;
+    background: var(--surface-2); border: 1px solid var(--line); border-left: 4px solid var(--critical);
+    border-radius: var(--radius-m); padding: 10px 12px; cursor: pointer; font-family: inherit; color: var(--ink);
+  }
+  .diet-other-item:hover { border-color: var(--critical); }
+  .diet-other-name { font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+  .diet-other-ward { font-weight: 400; color: var(--muted); }
+  .diet-other-req { font-size: 22px; font-weight: 700; line-height: 1.2; color: var(--ink); overflow-wrap: anywhere; }
 
   .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .stat-tile {
@@ -914,7 +944,87 @@
       color: #111;
     }
     .print-card-id { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 8.5pt; color: #555; margin-top: auto; }
+    .print-card-namebox {
+      position: relative;
+      width: 100%;
+      height: calc(var(--ns, 22pt) * 2.4);
+      min-height: 14mm;
+      margin-top: 3mm;
+      border: 0.45mm solid #111;
+      border-radius: 2mm;
+    }
+    .print-card-namebox span {
+      position: absolute; top: 1mm; left: 2mm;
+      font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6pt; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase; color: #777;
+    }
+    .print-card.is-blank canvas { margin-top: 6mm; }
+    .print-card.is-blank .print-card-id { font-size: 11pt; font-weight: 600; color: #111; }
   }
+
+  /* ---------- Walk-in sign-up ---------- */
+  .walkin-card { display: flex; flex-direction: column; gap: 12px; }
+  .walkin-code {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 12px; border-radius: var(--radius-m);
+    background: var(--accent-tint); border: 1px solid var(--line);
+  }
+  .walkin-code-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+  .walkin-code-id { font-size: 18px; font-weight: 600; color: var(--accent-ink); }
+  .walkin-field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
+  .walkin-field .text-input { width: 100%; font-size: 16px; }
+  .walkin-photo {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px; border: 1px dashed var(--line); border-radius: var(--radius-m); background: var(--surface-2);
+  }
+  .walkin-photo-preview {
+    flex: none; width: 76px; height: 76px; border-radius: 50%; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 26px;
+  }
+  .walkin-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .walkin-photo-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; font-size: 12px; color: var(--muted); }
+  .walkin-photo-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .walkin-note { font-size: 11.5px; color: var(--muted); }
+  .walkin-print {
+    display: flex; flex-direction: column; gap: 10px;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 12px;
+  }
+  .walkin-print-head { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .walkin-print-sub { font-size: 12px; color: var(--muted); margin-top: -6px; }
+  .walkin-print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .walkin-print-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-soft); }
+  .walkin-print-grid .text-input { width: 100%; }
+  .walkin-print-range { font-size: 12px; color: var(--ink-soft); }
+  .pill-walkin { background: var(--accent-tint); color: var(--accent-ink); }
+
+  /* ---------- Staff access list ---------- */
+  .staff-card { display: flex; flex-direction: column; gap: 10px; }
+  .staff-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+  .staff-head .back-link { margin-left: auto; }
+  .staff-me { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--ink-soft);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 7px 10px; }
+  .staff-list { display: flex; flex-direction: column; gap: 6px; }
+  .staff-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 7px 10px; }
+  .staff-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .staff-name { font-size: 13.5px; font-weight: 500; }
+  .staff-meta { font-size: 11px; color: var(--muted); }
+  .staff-role-select { width: 100%; font-size: 16px; font-family: "IBM Plex Sans", system-ui, sans-serif; }
+  .problem-modal .text-input { font-family: "IBM Plex Sans", system-ui, sans-serif; }
+
+  /* ---------- Problem reports ---------- */
+  .problem-modal { text-align: left; }
+  .problem-modal .modal-title { text-align: center; }
+  .problem-textarea { width: 100%; min-height: 110px; resize: vertical; font-family: inherit; font-size: 16px; line-height: 1.4; }
+  .problem-modal .text-input { width: 100%; font-size: 16px; }
+  .problem-item {
+    display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+    background: var(--surface-2); border: 1px solid var(--line); border-left: 4px solid var(--warning);
+    border-radius: var(--radius-m); padding: 10px 12px;
+  }
+  .problem-item.is-resolved { border-left-color: var(--success); opacity: 0.75; }
+  .problem-text { font-size: 14px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .problem-meta { font-size: 11.5px; color: var(--muted); }
 </style>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -968,6 +1078,8 @@
   "use strict";
 
   var DEMO_PIN = "2468";
+  // Where the app lives for staff phones (GitHub Pages). Shown as step 1 of "Share QR code" in Settings.
+  var APP_SITE_URL = "https://noahruediger.github.io/ysa-qr-checkin/";
 
   // ---------- live backend wiring ----------
   var BACKEND_URL = "";
@@ -1018,6 +1130,96 @@
   try { localPicked = JSON.parse(localStorage.getItem("qrCheckinPickedUp") || "{}") || {}; } catch (e) { localPicked = {}; }
   function saveLocalPicked() { try { localStorage.setItem("qrCheckinPickedUp", JSON.stringify(localPicked)); } catch (e) { /* fine */ } }
 
+  // Check-in checklist. Each task is a Yes/No column pair in the Sheet (e.g. "Pack Given" / "Pack Given At").
+  // Ticks are also remembered on this phone, like pickup ticks.
+  var CHECKIN_TASKS = [
+    { key: "pack", label: "Check-in pack", field: "packGiven", atField: "packGivenAt" },
+    { key: "shirt", label: "Shirt collection", field: "shirtGiven", atField: "shirtGivenAt" }
+  ];
+  var localTasks = {};
+  try { localTasks = JSON.parse(localStorage.getItem("qrCheckinTasks") || "{}") || {}; } catch (e) { localTasks = {}; }
+  function saveLocalTasks() { try { localStorage.setItem("qrCheckinTasks", JSON.stringify(localTasks)); } catch (e) { /* fine */ } }
+  // ---------- walk-ins (people who sign up on the day with a pre-printed blank card) ----------
+  // Blank cards carry codes YSA-A0001, YSA-A0002 ... Scanning one that isn't linked to anyone yet
+  // opens the walk-in sign-up screen. Walk-ins are also kept on this phone so nothing is lost if
+  // the Sheet can't be reached; they're re-sent next time the app connects.
+  var WALKIN_RE = /^YSA-A\d{4}$/;
+  function isWalkinCode(id) { return WALKIN_RE.test(String(id || "").trim().toUpperCase()); }
+  function walkinCode(n) { return "YSA-A" + ("000" + n).slice(-4); }
+  function walkinNum(id) { var m = /^YSA-A(\d{4})$/.exec(String(id || "")); return m ? parseInt(m[1], 10) : 0; }
+
+  var localWalkins = {};   // id -> { id, name, ward, photo, at, synced }
+  try { localWalkins = JSON.parse(localStorage.getItem("qrCheckinWalkins") || "{}") || {}; } catch (e) { localWalkins = {}; }
+  function saveLocalWalkins() {
+    try { localStorage.setItem("qrCheckinWalkins", JSON.stringify(localWalkins)); }
+    catch (e) {
+      // Out of space (photos are the heavy part) — keep the names and drop photos that already reached the Sheet.
+      try {
+        Object.keys(localWalkins).forEach(function (k) { if (localWalkins[k].synced) localWalkins[k].photo = null; });
+        localStorage.setItem("qrCheckinWalkins", JSON.stringify(localWalkins));
+      } catch (e2) { /* fine — the in-memory copy still works this session */ }
+    }
+  }
+  var walkinPrintedTo = 0;  // highest blank card number printed on this phone
+  try { walkinPrintedTo = parseInt(localStorage.getItem("qrCheckinWalkinPrintedTo") || "0", 10) || 0; } catch (e) { walkinPrintedTo = 0; }
+
+  function walkinToRegistrant(w) {
+    return {
+      id: w.id, name: w.name, ward: w.ward || "Walk-in", stake: w.stake || "", dietary: null,
+      checkedIn: false, checkedInAt: null, bookings: [],
+      qrPrinted: true, qrPrintedAt: "Blank card",
+      lost: false, lostAt: null, needsPickup: false, pickupTime: null,
+      details: [["QR ID", w.id], ["Name", w.name], ["Ward", w.ward || ""], ["Walk-in", "Yes"], ["Registered At", w.at || ""]],
+      pickedUp: false, pickedUpAt: null, team: null, photo: w.photo || null,
+      shirtSize: null, shirtColour: null,
+      packGiven: !!(localTasks[w.id] && localTasks[w.id].pack), packGivenAt: (localTasks[w.id] && localTasks[w.id].pack) || null,
+      shirtGiven: !!(localTasks[w.id] && localTasks[w.id].shirt), shirtGivenAt: (localTasks[w.id] && localTasks[w.id].shirt) || null,
+      walkin: true
+    };
+  }
+
+  // Add any walk-ins saved on this phone that the current list doesn't have yet.
+  function mergeLocalWalkins() {
+    Object.keys(localWalkins).forEach(function (id) {
+      var existing = byId(state.registrants, id);
+      if (!existing) state.registrants.push(walkinToRegistrant(localWalkins[id]));
+      else {
+        existing.walkin = true;
+        if (!existing.photo && localWalkins[id].photo) existing.photo = localWalkins[id].photo;
+      }
+    });
+  }
+
+  // Re-send walk-ins the Sheet hasn't confirmed yet (e.g. registered while the wifi was down).
+  function syncPendingWalkins() {
+    if (!BACKEND_URL) return;
+    Object.keys(localWalkins).forEach(function (id) {
+      var w = localWalkins[id];
+      if (w.synced) return;
+      var onServer = byId(state.registrants, id);
+      if (onServer && onServer.fromServer) { w.synced = true; saveLocalWalkins(); return; }
+      apiPost({ action: "registerWalkin", id: w.id, name: w.name, ward: w.ward || "", photo: w.photo || "", at: w.at })
+        .then(function (res) {
+          if (res && res.ok) { w.synced = true; saveLocalWalkins(); }
+        }).catch(function () { /* try again next load */ });
+    });
+  }
+
+  function findTask(key) { for (var i = 0; i < CHECKIN_TASKS.length; i++) { if (CHECKIN_TASKS[i].key === key) return CHECKIN_TASKS[i]; } return null; }
+  function detailOf(r, labelRe) {
+    if (!r.details) return "";
+    for (var i = 0; i < r.details.length; i++) { if (labelRe.test(r.details[i][0])) return r.details[i][1] || ""; }
+    return "";
+  }
+  function shirtText(r) {
+    var size = r.shirtSize || detailOf(r, /shirt.*size/i);
+    var colour = r.shirtColour || detailOf(r, /shirt.*colou?r/i);
+    var bits = [];
+    if (size) bits.push("Size " + size);
+    if (colour) bits.push(colour);
+    return bits.join(" \u00b7 ");
+  }
+
   // Every column of the Sheet row, in sheet order, as [label, value] pairs.
   // The backend can send an array of pairs / {label, value} objects, or a plain {header: value} object.
   function normalizeDetails(d) {
@@ -1065,8 +1267,92 @@
       pickedUp: r.pickedUp === undefined ? !!localPicked[r.id] : !!r.pickedUp,
       pickedUpAt: r.pickedUpAt || (localPicked[r.id] && localPicked[r.id] !== true ? localPicked[r.id] : null),
       team: r.team || null,
-      photo: r.photo || r.photoUrl || null
+      photo: r.photo || r.photoUrl || null,
+      shirtSize: r.shirtSize || null,
+      shirtColour: r.shirtColour || null,
+      packGiven: r.packGiven === undefined ? !!(localTasks[r.id] && localTasks[r.id].pack) : !!r.packGiven,
+      packGivenAt: r.packGivenAt || (localTasks[r.id] && localTasks[r.id].pack) || null,
+      shirtGiven: r.shirtGiven === undefined ? !!(localTasks[r.id] && localTasks[r.id].shirt) : !!r.shirtGiven,
+      shirtGivenAt: r.shirtGivenAt || (localTasks[r.id] && localTasks[r.id].shirt) || null,
+      walkin: !!r.walkin || isWalkinCode(r.id),
+      fromServer: true
     };
+  }
+
+  // ---------- staff names ("People with access") ----------
+  // Each phone gets a random device ID. The first time it loads a Sheet, staff type their name;
+  // the Sheet keeps a "Staff" tab of every phone that has connected (name, first connected, last seen).
+  var deviceId = "";
+  try { deviceId = localStorage.getItem("qrCheckinDeviceId") || ""; } catch (e) { deviceId = ""; }
+  if (!deviceId) {
+    deviceId = "D-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+    try { localStorage.setItem("qrCheckinDeviceId", deviceId); } catch (e) { /* fine */ }
+  }
+  var staffName = "";
+  try { staffName = localStorage.getItem("qrCheckinStaffName") || ""; } catch (e) { staffName = ""; }
+  var STAFF_ROLES = ["Admin", "Security", "Other"];
+  var staffRole = "";
+  try { staffRole = localStorage.getItem("qrCheckinStaffRole") || ""; } catch (e) { staffRole = ""; }
+  var staffList = null;        // People with access, as last loaded from the Sheet
+  var staffStatus = "";        // loading / error note for that list
+
+  function roleClass(role) {
+    return role === "Admin" ? "pill-success" : role === "Security" ? "pill-critical" : "pill-neutral";
+  }
+
+  function deviceLabel() {
+    var ua = navigator.userAgent || "";
+    var os = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "Other";
+    var br = /CriOS|Chrome\//.test(ua) && !/Edg\//.test(ua) ? "Chrome" : /Edg\//.test(ua) ? "Edge" : /FxiOS|Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Browser";
+    return os + " · " + br;
+  }
+
+  function afterConnectStaff() {
+    if (!staffName || !staffRole) { view.nameModal = { name: staffName, role: staffRole, error: "", saving: false, first: true }; render(); focusNameInput(); return; }
+    registerStaff(false);   // already named: just refreshes "last seen"
+  }
+
+  function focusNameInput() { var n = document.getElementById("staffNameInput"); if (n) n.focus(); }
+
+  function registerStaff(showErrors) {
+    if (!BACKEND_URL || !staffName) return Promise.resolve();
+    return apiPost({ action: "registerStaff", deviceId: deviceId, name: staffName, role: staffRole, device: deviceLabel() })
+      .then(function (res) {
+        if (res && res.ok) { if (res.staff) staffList = res.staff; staffStatus = ""; }
+        else staffStatus = "The Sheet script needs the staff update to keep the access list (" + (res && res.error) + ").";
+        if (view.screen === "tab" && view.activeTab === "settings") render();
+      })
+      .catch(function (err) { if (showErrors) { staffStatus = "Couldn’t reach the Sheet (" + err + ")."; render(); } });
+  }
+
+  function loadStaff() {
+    if (!BACKEND_URL) { staffList = null; staffStatus = ""; return; }
+    staffStatus = staffList ? "" : "Loading…";
+    apiGet("staff").then(function (d) {
+      if (d && d.ok) { staffList = d.staff || []; staffStatus = ""; }
+      else staffStatus = "The Sheet script needs the staff update to keep the access list (" + (d && d.error) + ").";
+      if (view.screen === "tab" && view.activeTab === "settings") render();
+    }).catch(function (err) {
+      staffStatus = "Couldn’t load the access list (" + err + ").";
+      if (view.screen === "tab" && view.activeTab === "settings") render();
+    });
+  }
+
+  function saveStaffName() {
+    var nm = view.nameModal;
+    if (!nm || nm.saving) return;
+    var name = nm.name.replace(/\s+/g, " ").trim();
+    if (name.length < 2) { nm.error = "Type your name so the team knows who’s using this phone."; render(); focusNameInput(); return; }
+    if (STAFF_ROLES.indexOf(nm.role) === -1) { nm.error = "Choose who you are: Admin, Security or Other."; render(); return; }
+    staffRole = nm.role;
+    try { localStorage.setItem("qrCheckinStaffRole", staffRole); } catch (e) { /* fine */ }
+    var oldName = staffName;
+    staffName = name;
+    try { localStorage.setItem("qrCheckinStaffName", name); } catch (e) { /* fine */ }
+    if (!reporterName || reporterName === oldName) { reporterName = name; try { localStorage.setItem("qrCheckinReporterName", name); } catch (e) { /* fine */ } }
+    view.nameModal = null;
+    render();
+    registerStaff(true);
   }
 
   function loadFromBackend() {
@@ -1081,8 +1367,11 @@
       }
       state.registrants = data.registrants.map(mapServerRegistrant);
       state.activities = data.activities;
+      mergeLocalWalkins();
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
+      syncPendingWalkins();
+      afterConnectStaff();
     }).catch(function (err) {
       backendBusy = false;
       setConnStatus("Couldn't reach that URL — " + err, false);
@@ -1091,56 +1380,134 @@
 
   function connectBackend() {
     var input = document.getElementById("settingsUrlInput");
-    var url = (input && input.value || "").trim();
+    connectWithUrl((input && input.value || "").trim());
+  }
+
+  // Setup QR codes just contain the Apps Script /exec URL.
+  function isBackendUrl(text) { return /^https:\/\/script\.google(usercontent)?\.com\/\S+$/i.test(String(text || "").trim()); }
+
+  function connectWithUrl(url) {
     if (!url) { setConnStatus("Paste your Apps Script /exec URL above first", false); return; }
     BACKEND_URL = url;
     settingsUrlDraft = url;
     try { localStorage.setItem("qrCheckinBackendUrl", url); } catch (e) { /* fine without persistence */ }
+    view.shareStep = 0;
+    render();   // so Settings picks up the new link (and its "Show setup QR" button) straight away
     loadFromBackend();
   }
 
-  var initialState = {
-    registrants: [
-      { id: "YSA-0231", photo: "https://randomuser.me/api/portraits/women/44.jpg", name: "Emma Whitfield", ward: "Wilston Ward", stake: "Beenleigh Stake", dietary: null, checkedIn: true, checkedInAt: "9:14 AM", bookings: ["futsal"], qrPrinted: true, qrPrintedAt: "3 Aug, 4:02 PM", lost: false, lostAt: null, needsPickup: true, pickupTime: "10:00 AM", team: "Team Blue" },
-      { id: "YSA-0187", photo: "https://randomuser.me/api/portraits/men/32.jpg", name: "Josh Tanuvasa", ward: "Springwood Ward", stake: "Logan Stake", dietary: "Gluten-free", checkedIn: false, checkedInAt: null, bookings: [], qrPrinted: true, qrPrintedAt: "3 Aug, 4:02 PM", lost: false, lostAt: null, needsPickup: false, pickupTime: null, team: "Team Red" },
-      { id: "YSA-0264", photo: "https://randomuser.me/api/portraits/women/68.jpg", name: "Priya Nair", ward: "Loganholme Ward", stake: "Beenleigh Stake", dietary: null, checkedIn: false, checkedInAt: null, bookings: [], qrPrinted: false, qrPrintedAt: null, lost: false, lostAt: null, needsPickup: true, pickupTime: "9:00 AM", team: "Team Blue" },
-      { id: "YSA-0119", photo: "https://randomuser.me/api/portraits/men/75.jpg", name: "Caleb Osei", ward: "Redbank Plains Ward", stake: "Ipswich Stake", dietary: "Nut allergy", checkedIn: true, checkedInAt: "10:02 AM", bookings: [], qrPrinted: false, qrPrintedAt: null, lost: true, lostAt: "11:20 AM", needsPickup: true, pickupTime: "11:00 AM", team: "Team Green" },
-      { id: "YSA-0302", photo: "https://randomuser.me/api/portraits/women/26.jpg", name: "Grace Kolinio", ward: "Beenleigh Ward", stake: "Logan Stake", dietary: "Vegetarian", checkedIn: false, checkedInAt: null, bookings: ["talent"], qrPrinted: false, qrPrintedAt: null, lost: false, lostAt: null, needsPickup: false, pickupTime: null, team: "Team Red" },
-      { id: "YSA-0145", photo: "https://randomuser.me/api/portraits/men/46.jpg", name: "Liam Fatupaito", ward: "Goodna Ward", stake: "Ipswich Stake", dietary: null, checkedIn: false, checkedInAt: null, bookings: [], qrPrinted: false, qrPrintedAt: null, lost: false, lostAt: null, needsPickup: true, pickupTime: "9:00 AM", team: "Team Green" }
-    ],
-    activities: [
-      { id: "escape", name: "Escape Room Challenge", time: "Sat 10:00 AM", capacity: 20, otherBookings: 11 },
-      { id: "choir", name: "Worship Night Rehearsal", time: "Sat 1:00 PM", capacity: 15, otherBookings: 13 },
-      { id: "futsal", name: "Sports Tournament: Futsal", time: "Sat 2:30 PM", capacity: 24, otherBookings: 15 },
-      { id: "service", name: "Service Project: Care Packages", time: "Sun 9:00 AM", capacity: 30, otherBookings: 9 },
-      { id: "talent", name: "Talent Show Sign-ups", time: "Sat 7:30 PM", capacity: 12, otherBookings: 11 },
-      { id: "hike", name: "Hike & Lookout Walk", time: "Sun 7:00 AM", capacity: 16, otherBookings: 6 }
-    ]
-  };
+  // ---------- demo data: 100 made-up registrants (fake names, fake numbers) ----------
+  // Built from a fixed seed, so the demo looks the same every time it loads.
+  var initialState = (function () {
+    var seed = 20260927;
+    function rand() { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+    function pick(arr) { return arr[Math.floor(rand() * arr.length)]; }
+    function chance(p) { return rand() < p; }
 
-  // Demo-only sample of "every column on the Sheet" (fake data).
-  (function () {
-    var extra = {
-      "YSA-0231": ["Female", "22", "0412 555 014", "emma.whitfield@example.com", "Sarah Whitfield (mum) \u2014 0400 555 201", "Hotel", "M", "Paid in full", "Flying in from Sydney"],
-      "YSA-0187": ["Male", "24", "0413 555 087", "josh.t@example.com", "Sione Tanuvasa (dad) \u2014 0400 555 302", "Host family", "XL", "Paid in full", ""],
-      "YSA-0264": ["Female", "20", "0414 555 264", "priya.nair@example.com", "Anita Nair (mum) \u2014 0400 555 403", "Hotel", "S", "Deposit paid", "Arriving on the 9:00 AM flight"],
-      "YSA-0119": ["Male", "26", "0415 555 119", "caleb.osei@example.com", "Kwame Osei (dad) \u2014 0400 555 504", "Host family", "L", "Paid in full", "Carries an EpiPen"],
-      "YSA-0302": ["Female", "19", "0416 555 302", "grace.k@example.com", "Mele Kolinio (mum) \u2014 0400 555 605", "Hotel", "M", "Paid in full", ""],
-      "YSA-0145": ["Male", "23", "0417 555 145", "liam.f@example.com", "Vili Fatupaito (dad) \u2014 0400 555 706", "Host family", "L", "Unpaid", "Needs a lift back to the airport on Sunday"]
-    };
-    initialState.registrants.forEach(function (r) {
-      var x = extra[r.id]; if (!x) return;
+    var FEMALE = ["Emma", "Grace", "Priya", "Hope", "Sophie", "Olivia", "Malia", "Sela", "Vika", "Rebecca", "Anika", "Zoe", "Charlotte", "Litia", "Ruby", "Mele", "Hannah", "Chloe", "Jasmine", "Leilani", "Ana", "Esther", "Paula", "Isla", "Mia", "Talia", "Georgia", "Amelia", "Losana", "Eliza"];
+    var MALE = ["Josh", "Caleb", "Liam", "Tomasi", "Sione", "Isaac", "Nathan", "Wiremu", "Samuela", "Aaron", "Tevita", "Latu", "Ilaisa", "Daniel", "Zac", "Semisi", "Ethan", "Noah", "Jacob", "Sefo", "Mosese", "Oliver", "Lachlan", "Viliami", "Ben", "Levi", "Tyler", "Jonah", "Api", "Max"];
+    var LAST = ["Whitfield", "Tanuvasa", "Nair", "Osei", "Kolinio", "Fatupaito", "Manu", "Petersen", "Singh", "Fifita", "Grant", "Robinson", "Cummins", "Hughes", "Anderson", "Turner", "Gupta", "Schmidt", "Lee", "Vaipulu", "Ross", "Reid", "Faleolo", "Nadan", "Taufa", "Stewart", "Wright", "Cook", "Ah Kuoi", "Bell", "Havili", "Moala", "Brown", "Latu", "Tupou", "Kaufusi", "Wilson", "Nguyen", "Mahe", "O'Brien"];
+    var UNITS = [
+      ["Mount Gravatt Ward", "Brisbane Stake"], ["Indooroopilly Ward", "Brisbane Stake"], ["Sunnybank Ward", "Brisbane Stake"], ["The Gap Ward", "Brisbane Stake"],
+      ["Springwood Ward", "Logan Stake"], ["Marsden Ward", "Logan Stake"], ["Loganholme Ward", "Beenleigh Stake"], ["Beenleigh Ward", "Beenleigh Stake"],
+      ["Capalaba Ward", "Redlands Stake"], ["Cleveland Ward", "Redlands Stake"], ["Victoria Point Ward", "Redlands Stake"],
+      ["Redbank Plains Ward", "Ipswich Stake"], ["Goodna Ward", "Ipswich Stake"], ["Nerang Ward", "Gold Coast Stake"], ["Coomera Branch", "Gold Coast Stake"],
+      ["Highfields Branch", "Toowoomba Stake"], ["Caboolture Ward", "Caboolture Stake"]
+    ];
+    var TEAMS = ["Team Red", "Team Blue", "Team Green", "Team Gold", "Team Silver"];
+    var DIETS = ["Vegetarian", "Vegan", "Gluten-free", "Halal", "Nut allergy", "Dairy-free", "Pescatarian", "No pork or beef", "Shellfish allergy (severe)"];
+    var PICKUPS = ["9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "2:00 PM"];
+    var CHECKIN_TIMES = ["8:42 AM", "8:55 AM", "9:06 AM", "9:14 AM", "9:21 AM", "9:37 AM", "9:48 AM", "10:02 AM", "10:15 AM", "10:31 AM"];
+    var RELATION = ["mum", "dad", "sister", "brother", "aunt", "uncle", "bishop", "grandparent"];
+    var STAY = ["On-site (University of Queensland)", "Off-site", "Host family"];
+    var SIZES = ["XS", "S", "M", "L", "XL", "2XL"];
+    var PAYMENT = ["Paid in full", "Paid in full", "Paid in full", "Deposit paid", "Unpaid"];
+
+    var activities = [
+      { id: "escape", name: "Escape Room Challenge", time: "Sat 10:00 AM", capacity: 20, otherBookings: 4 },
+      { id: "choir", name: "Worship Night Rehearsal", time: "Sat 1:00 PM", capacity: 15, otherBookings: 2 },
+      { id: "futsal", name: "Sports Tournament: Futsal", time: "Sat 2:30 PM", capacity: 24, otherBookings: 6 },
+      { id: "service", name: "Service Project: Care Packages", time: "Sun 9:00 AM", capacity: 30, otherBookings: 3 },
+      { id: "talent", name: "Talent Show Sign-ups", time: "Sat 7:30 PM", capacity: 12, otherBookings: 5 },
+      { id: "hike", name: "Hike & Lookout Walk", time: "Sun 7:00 AM", capacity: 16, otherBookings: 1 }
+    ];
+    var taken = {};
+    activities.forEach(function (a) { taken[a.id] = a.otherBookings; });
+
+    var registrants = [];
+    var usedNames = {};
+    for (var i = 1; i <= 100; i++) {
+      var female = i % 2 === 1;
+      var first, last, name;
+      do {
+        first = pick(female ? FEMALE : MALE);
+        last = pick(LAST);
+        name = first + " " + last;
+      } while (usedNames[name]);
+      usedNames[name] = true;
+
+      var unit = pick(UNITS);
+      var id = "YSA-" + ("000" + i).slice(-4);
+      var dietary = chance(0.25) ? pick(DIETS) : null;
+      var needsPickup = chance(0.22);
+      var checkedIn = chance(0.35);
+      var qrPrinted = checkedIn || chance(0.5);
+      var bookings = [];
+      activities.forEach(function (a) {
+        if (chance(0.12) && taken[a.id] < a.capacity - (a.id === "talent" ? 1 : 2)) { bookings.push(a.id); taken[a.id]++; }
+      });
+
+      var r = {
+        id: id,
+        photo: "https://randomuser.me/api/portraits/" + (female ? "women" : "men") + "/" + ((i * 7) % 90) + ".jpg",
+        name: name,
+        ward: unit[0],
+        stake: unit[1],
+        dietary: dietary,
+        checkedIn: checkedIn,
+        checkedInAt: checkedIn ? pick(CHECKIN_TIMES) : null,
+        bookings: bookings,
+        qrPrinted: qrPrinted,
+        qrPrintedAt: qrPrinted ? pick(["3 Aug, 4:02 PM", "14 Sep, 10:24 AM", "20 Sep, 6:10 PM"]) : null,
+        lost: false,
+        lostAt: null,
+        needsPickup: needsPickup,
+        pickupTime: needsPickup ? pick(PICKUPS) : null,
+        team: TEAMS[(i - 1) % TEAMS.length]
+      };
+
+      var phone = "04" + Math.floor(10 + rand() * 90) + " 555 " + ("00" + Math.floor(rand() * 1000)).slice(-3);
+      var contactPhone = "0400 555 " + ("00" + Math.floor(rand() * 1000)).slice(-3);
+      var relation = pick(RELATION);
       r.details = [
-        ["ID", r.id], ["Name", r.name], ["Gender", x[0]], ["Age", x[1]], ["Phone", x[2]], ["Email", x[3]],
-        ["Ward", r.ward], ["Stake", r.stake], ["Dietary", r.dietary || ""], ["Emergency contact", x[4]],
-        ["Accommodation", x[5]], ["T-shirt size", x[6]], ["Payment", x[7]],
+        ["ID", r.id], ["Name", r.name], ["Gender", female ? "Female" : "Male"], ["Age", String(18 + Math.floor(rand() * 13))],
+        ["Phone", phone], ["Email", (first + "." + last).toLowerCase().replace(/[^a-z.]/g, "") + i + "@example.com"],
+        ["Ward", r.ward], ["Stake", r.stake], ["Dietary", r.dietary || ""],
+        ["Emergency contact", pick(FEMALE.concat(MALE)) + " " + last + " (" + relation + ") — " + contactPhone],
+        ["Accommodation", pick(STAY)], ["T-shirt size", pick(SIZES)], ["Payment", pick(PAYMENT)],
         ["Needs airport pickup", r.needsPickup ? "Yes" : "No"], ["Pickup time", r.pickupTime || ""],
-        ["Team", r.team || ""], ["Notes", x[8]]
+        ["Team", r.team], ["Notes", r.dietary === "Nut allergy" ? "Carries an EpiPen" : ""]
       ];
+      // Checked in = every item on the check-in list is done. A few people are part-way through.
+      r.packGiven = checkedIn || chance(0.1);
+      r.packGivenAt = r.packGiven ? (r.checkedInAt || "9:50 AM") : null;
+      r.shirtGiven = checkedIn;
+      r.shirtGivenAt = r.shirtGiven ? r.checkedInAt : null;
+      registrants.push(r);
+    }
+
+    // A couple of people reported lost, so the dashboard alert has something to show.
+    [registrants[6], registrants[41]].forEach(function (r, k) {
+      r.checkedIn = true; r.checkedInAt = r.checkedInAt || "9:30 AM";
+      r.packGiven = r.shirtGiven = true; r.packGivenAt = r.shirtGivenAt = r.checkedInAt;
+      r.lost = true; r.lostAt = k ? "12:05 PM" : "11:20 AM";
     });
+
+    return { registrants: registrants, activities: activities };
   })();
 
   var state = clone(initialState);
+  mergeLocalWalkins();
   var view = defaultView();
   var lastUpdatedRegistrant = null;
   var lastUpdatedActivity = null;
@@ -1166,6 +1533,13 @@
       selected: new Set(),
       printToast: "",
       presetEditOpen: false,
+      walkin: null,            // draft while the walk-in sign-up screen is open
+      cameraMode: null,        // null = lanyard scanning | "setup" = scanning a setup QR (Apps Script URL)
+      problemModal: null,      // draft while the "Submit problem" pop-up is open
+      nameModal: null,         // "What's your name?" pop-up (first connect, or Change in Settings)
+      shareStep: 0,           // Settings "Share QR code": 0 closed | 1 app website | 2 Sheet setup link
+      walkinStart: null,       // blank-card print form (null = suggest the next unused number)
+      walkinCount: null,
       confirm: null            // { id, next } while the pickup confirmation prompt is open
     };
   }
@@ -1280,7 +1654,7 @@
         video.setAttribute("playsinline", "true");
         video.play();
         cameraHiddenCanvas = document.createElement("canvas");
-        if (msgEl) msgEl.textContent = "Point the camera at a lanyard's QR code";
+        if (msgEl) msgEl.textContent = cameraPrompt();
         cameraRaf = requestAnimationFrame(tickCamera);
       })
       .catch(function (err) {
@@ -1314,11 +1688,43 @@
     cameraRaf = requestAnimationFrame(tickCamera);
   }
 
+  function cameraPrompt() {
+    return view.cameraMode === "setup" ? "Point the camera at the setup QR code" : "Point the camera at a lanyard's QR code";
+  }
+
   function handleDecodedId(text) {
-    var r = byId(state.registrants, text);
+    if (view.cameraMode === "setup" || isBackendUrl(text)) {
+      if (isBackendUrl(text) && view.cameraMode === "setup") {
+        stopCamera();
+        view.cameraMode = null;
+        view.screen = "tab";
+        view.activeTab = "settings";
+        settingsUrlDraft = text;
+        render();
+        connectWithUrl(text);
+        return;
+      }
+      var sm = document.getElementById("cameraMsg");
+      if (sm) sm.textContent = view.cameraMode === "setup"
+        ? "That isn’t an Apps Script setup link — try again"
+        : "That’s a setup code — scan it from Settings instead";
+      if (cameraUnrecognizedTimer) clearTimeout(cameraUnrecognizedTimer);
+      cameraUnrecognizedTimer = setTimeout(function () {
+        var m = document.getElementById("cameraMsg");
+        if (m && view.screen === "camera") m.textContent = cameraPrompt();
+      }, 1800);
+      cameraRaf = requestAnimationFrame(tickCamera);
+      return;
+    }
+    var r =byId(state.registrants, text) || byId(state.registrants, text.toUpperCase());
     if (r) {
       stopCamera();
       scan(r.id);
+      return;
+    }
+    if (isWalkinCode(text)) {
+      stopCamera();
+      openWalkin(text.toUpperCase());
       return;
     }
     var msgEl = document.getElementById("cameraMsg");
@@ -1326,7 +1732,7 @@
     if (cameraUnrecognizedTimer) clearTimeout(cameraUnrecognizedTimer);
     cameraUnrecognizedTimer = setTimeout(function () {
       var m = document.getElementById("cameraMsg");
-      if (m && view.screen === "camera") m.textContent = "Point the camera at a lanyard's QR code";
+      if (m && view.screen === "camera") m.textContent = cameraPrompt();
     }, 1800);
     cameraRaf = requestAnimationFrame(tickCamera);
   }
@@ -1354,11 +1760,24 @@
     view.screen = "tab";
     if (tabName === "other") view.otherPage = null;
     render();
+    if (tabName === "settings") loadStaff();
   }
 
-  function openCamera() { stopCamera(); view.screen = "camera"; render(); startCamera(); }
+  function openCamera(mode) {
+    stopCamera();
+    view.cameraMode = mode === "setup" ? "setup" : null;
+    view.screen = "camera";
+    render();
+    startCamera();
+  }
 
-  function cancelCamera() { stopCamera(); view.screen = "tab"; render(); }
+  function cancelCamera() {
+    stopCamera();
+    if (view.cameraMode === "setup") view.activeTab = "settings";
+    view.cameraMode = null;
+    view.screen = "tab";
+    render();
+  }
 
   function backFromScanned() { view.screen = "tab"; render(); }
 
@@ -1376,9 +1795,211 @@
     var errEl = document.getElementById("manualError");
     if (!id) { if (errEl) errEl.textContent = "Enter the ID printed on the lanyard."; return; }
     var r = byId(state.registrants, id);
+    if (!r && isWalkinCode(id)) { stopCamera(); openWalkin(id); return; }
     if (!r) { if (errEl) errEl.textContent = "No registrant found with ID " + id + "."; return; }
     stopCamera();
     scan(r.id);
+  }
+
+  // ---------- walk-in sign-up ----------
+  function openWalkin(id) {
+    view.screen = "walkin";
+    view.walkin = { id: id, name: "", ward: "", photo: null, saving: false, error: "", photoBusy: false };
+    render();
+    var n = document.getElementById("walkinName");
+    if (n) n.focus();
+  }
+
+  function cancelWalkin() { view.walkin = null; view.screen = "tab"; render(); }
+
+  // Shrink the photo to a small square-ish JPEG so it's quick to send and store.
+  function loadWalkinPhoto(file) {
+    var w = view.walkin;
+    if (!w || !file) return;
+    w.photoBusy = true; w.error = ""; render();
+    var reader = new FileReader();
+    reader.onerror = function () { w.photoBusy = false; w.error = "Couldn't read that photo — try taking it again."; render(); };
+    reader.onload = function () {
+      var img = new Image();
+      img.onerror = function () { w.photoBusy = false; w.error = "Couldn't read that photo — try taking it again."; render(); };
+      img.onload = function () {
+        var max = 480;
+        var scale = Math.min(1, max / Math.max(img.width, img.height));
+        var cw = Math.max(1, Math.round(img.width * scale)), ch = Math.max(1, Math.round(img.height * scale));
+        var c = document.createElement("canvas");
+        c.width = cw; c.height = ch;
+        c.getContext("2d").drawImage(img, 0, 0, cw, ch);
+        w.photo = c.toDataURL("image/jpeg", 0.78);
+        w.photoBusy = false;
+        render();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function saveWalkin() {
+    var w = view.walkin;
+    if (!w || w.saving) return;
+    w.name = w.name.replace(/\s+/g, " ").trim();
+    w.ward = w.ward.replace(/\s+/g, " ").trim();
+    if (!w.name) { w.error = "Type their name (the same as on their card)."; render(); return; }
+    if (!w.photo) { w.error = "Take a photo of them first — it's how security can identify them later."; render(); return; }
+    if (byId(state.registrants, w.id)) { w.error = w.id + " is already linked to someone. Give them a different blank card."; render(); return; }
+
+    var rec = { id: w.id, name: w.name, ward: w.ward, photo: w.photo, at: nowTime(), synced: false };
+    var finish = function (serverReg) {
+      localWalkins[rec.id] = rec;
+      saveLocalWalkins();
+      var r = serverReg ? mapServerRegistrant(serverReg) : walkinToRegistrant(rec);
+      if (!r.photo) r.photo = rec.photo;
+      r.walkin = true;
+      var existing = byId(state.registrants, rec.id);
+      if (existing) Object.assign(existing, r); else state.registrants.push(r);
+      lastUpdatedRegistrant = rec.id;
+      view.walkin = null;
+      scan(rec.id);
+    };
+
+    if (!BACKEND_URL) { finish(null); return; }
+    w.saving = true; w.error = ""; render();
+    setConnStatus("Saving walk-in…", false);
+    apiPost({ action: "registerWalkin", id: rec.id, name: rec.name, ward: rec.ward, photo: rec.photo, at: rec.at })
+      .then(function (res) {
+        if (res && res.ok) {
+          rec.synced = true;
+          setConnStatus("Connected — live off the test Sheet", true);
+          finish(res.registrant || null);
+        } else if (res && res.error === "taken") {
+          w.saving = false;
+          w.error = rec.id + " is already linked to " + (res.name || "someone else") + " in the Sheet. Give them a different blank card.";
+          setConnStatus("Connected — live off the test Sheet", true);
+          render();
+        } else {
+          // Sheet script hasn't got the walk-in update yet — keep it on this phone and retry later.
+          setConnStatus("Walk-in saved on this phone only — the Sheet script needs the walk-in update (" + (res && res.error) + ")", false);
+          finish(null);
+        }
+      })
+      .catch(function (err) {
+        setConnStatus("Walk-in saved on this phone only — " + err + " (it'll send when the connection is back)", false);
+        finish(null);
+      });
+  }
+
+  // ---------- problem reports (Settings) ----------
+  // Saved to a "Problems" tab in the Sheet. Without a backend (or if the Sheet script doesn't have the
+  // problems update yet) they're kept on this phone so nothing typed is lost.
+  var localProblems = [];
+  try { localProblems = JSON.parse(localStorage.getItem("qrCheckinProblems") || "[]") || []; } catch (e) { localProblems = []; }
+  function saveLocalProblems() { try { localStorage.setItem("qrCheckinProblems", JSON.stringify(localProblems)); } catch (e) { /* fine */ } }
+  var reporterName = "";
+  try { reporterName = localStorage.getItem("qrCheckinReporterName") || ""; } catch (e) { reporterName = ""; }
+  var problemsList = null;      // last list shown on the View problems screen
+  var problemsStatus = "";      // loading / error note for that screen
+
+  function openProblemModal() {
+    view.problemModal = { text: "", name: reporterName || staffName, sending: false, error: "", sent: false };
+    render();
+    var ta = document.getElementById("problemText");
+    if (ta) ta.focus();
+  }
+  function closeProblemModal() {
+    var wasSent = view.problemModal && view.problemModal.sent;
+    view.problemModal = null;
+    render();
+    if (wasSent && view.screen === "problems") loadProblems();
+  }
+
+  function submitProblem() {
+    var pm = view.problemModal;
+    if (!pm || pm.sending) return;
+    pm.text = pm.text.trim();
+    pm.name = pm.name.replace(/\s+/g, " ").trim();
+    if (!pm.text) { pm.error = "Type what went wrong first."; render(); return; }
+    reporterName = pm.name;
+    try { localStorage.setItem("qrCheckinReporterName", reporterName); } catch (e) { /* fine */ }
+    var p = { id: "P-" + Date.now().toString(36).toUpperCase(), at: nowTime(), by: pm.name, text: pm.text, status: "Open", resolvedAt: "", local: true };
+    var keepLocal = function (note) {
+      localProblems.unshift(p); saveLocalProblems();
+      pm.sending = false; pm.sent = true; pm.note = note; render();
+    };
+    if (!BACKEND_URL) { keepLocal("Saved on this phone (not connected to a Sheet)."); return; }
+    pm.sending = true; pm.error = ""; render();
+    apiPost({ action: "reportProblem", id: p.id, by: p.by, text: p.text })
+      .then(function (res) {
+        if (res && res.ok) { pm.sending = false; pm.sent = true; pm.note = "Sent to the Problems tab in the Sheet."; render(); }
+        else keepLocal("Saved on this phone only — the Sheet script needs the problems update (" + (res && res.error) + ").");
+      })
+      .catch(function (err) { keepLocal("Saved on this phone only — couldn’t reach the Sheet (" + err + ")."); });
+  }
+
+  function openProblems() {
+    view.screen = "problems";
+    problemsStatus = BACKEND_URL ? "Loading…" : "";
+    render();
+    loadProblems();
+  }
+
+  function loadProblems() {
+    var local = localProblems.slice();
+    if (!BACKEND_URL) { problemsList = local; problemsStatus = ""; render(); return; }
+    apiGet("problems").then(function (d) {
+      if (d && d.ok) { problemsList = (d.problems || []).concat(local); problemsStatus = ""; }
+      else { problemsList = local; problemsStatus = "Couldn’t load the Problems tab — the Sheet script needs the problems update (" + (d && d.error) + "). Showing problems saved on this phone."; }
+      if (view.screen === "problems") render();
+    }).catch(function (err) {
+      problemsList = local; problemsStatus = "Couldn’t reach the Sheet (" + err + "). Showing problems saved on this phone.";
+      if (view.screen === "problems") render();
+    });
+  }
+
+  function setProblemStatus(id, resolved) {
+    var p = null;
+    (problemsList || []).forEach(function (x) { if (x.id === id) p = x; });
+    if (!p) return;
+    p.status = resolved ? "Resolved" : "Open";
+    p.resolvedAt = resolved ? nowTime() : "";
+    p.resolvedBy = resolved ? reporterName : "";
+    if (p.local) {
+      localProblems.forEach(function (x) { if (x.id === id) { x.status = p.status; x.resolvedAt = p.resolvedAt; x.resolvedBy = p.resolvedBy; } });
+      saveLocalProblems();
+      render();
+      return;
+    }
+    render();
+    apiPost({ action: "setProblemStatus", id: id, status: p.status, by: reporterName }).then(function (res) {
+      if (!(res && res.ok)) { problemsStatus = "Couldn’t update the Sheet (" + (res && res.error) + ")."; render(); }
+    }).catch(function (err) { problemsStatus = "Couldn’t update the Sheet (" + err + ")."; render(); });
+  }
+
+  // ---------- blank walk-in cards (Print tab) ----------
+  function nextWalkinNumber() {
+    var hi = walkinPrintedTo;
+    state.registrants.forEach(function (r) { var n = walkinNum(r.id); if (n > hi) hi = n; });
+    return hi + 1;
+  }
+
+  function printBlankCards() {
+    var startEl = document.getElementById("walkinStart");
+    var countEl = document.getElementById("walkinCount");
+    var start = Math.max(1, Math.min(9999, parseInt(startEl && startEl.value, 10) || nextWalkinNumber()));
+    var count = Math.max(1, Math.min(400, parseInt(countEl && countEl.value, 10) || gridFor(printSettings).perPage));
+    if (start + count - 1 > 9999) count = 9999 - start + 1;
+    view.walkinStart = start; view.walkinCount = count;
+    var items = [];
+    for (var i = 0; i < count; i++) items.push({ id: walkinCode(start + i), blank: true });
+    renderPrintCards(items);
+    var last = start + count - 1;
+    if (last > walkinPrintedTo) {
+      walkinPrintedTo = last;
+      try { localStorage.setItem("qrCheckinWalkinPrintedTo", String(last)); } catch (e) { /* fine */ }
+    }
+    view.walkinStart = null;   // next time, suggest the number after this batch
+    lastPrintedBatch = [];
+    view.printToast = count + " blank walk-in card" + (count === 1 ? "" : "s") + " sent to print (" + walkinCode(start) + " to " + walkinCode(last) + ").";
+    document.body.classList.add("printing");
+    window.print();
   }
 
   function scan(registrantId) {
@@ -1471,11 +2092,49 @@
     render();
   }
 
+  function askTask(id, key) {
+    var r = byId(state.registrants, id);
+    var t = findTask(key);
+    if (!r || !t) return;
+    view.confirm = { kind: "task", id: id, task: key, next: !r[t.field] };
+    render();
+  }
+
+  function answerTask(c) {
+    var r = byId(state.registrants, c.id);
+    var t = findTask(c.task);
+    if (!r || !t) { render(); return; }
+    r[t.field] = c.next;
+    r[t.atField] = c.next ? nowTime() : null;
+    if (!localTasks[r.id]) localTasks[r.id] = {};
+    if (c.next) localTasks[r.id][t.key] = r[t.atField]; else delete localTasks[r.id][t.key];
+    saveLocalTasks();
+
+    // Someone counts as checked in once every item on the list is done.
+    var allDone = CHECKIN_TASKS.every(function (x) { return r[x.field]; });
+    var checkInChange = null;
+    if (allDone && !r.checkedIn) { r.checkedIn = true; r.checkedInAt = nowTime(); checkInChange = "checkin"; }
+    else if (!allDone && r.checkedIn) { r.checkedIn = false; r.checkedInAt = null; checkInChange = "uncheckin"; }
+
+    lastUpdatedRegistrant = r.id;
+    render();
+    if (BACKEND_URL) {
+      apiPost({ action: "markTask", id: r.id, task: t.key, value: c.next }).then(function (res) {
+        if (res && res.ok) setConnStatus("Connected \u2014 live off the test Sheet", true);
+        else setConnStatus("Saved on this phone only \u2014 the Sheet script needs the check-in list update (" + (res && res.error) + ")", false);
+        if (checkInChange) return apiPost({ action: checkInChange, id: r.id });
+      }).then(function (res2) {
+        if (res2 && !res2.ok && checkInChange === "uncheckin") setConnStatus("Undo saved on this phone only \u2014 the Sheet still shows them checked in", false);
+      }).catch(function (err) { setConnStatus("Saved on this phone only \u2014 " + err, false); });
+    }
+  }
+
   function answerPickup(yes) {
     var c = view.confirm;
     view.confirm = null;
     if (!yes || !c) { render(); return; }
     if (c.kind === "deletePreset") { deletePreset(); return; }
+    if (c.kind === "task") { answerTask(c); return; }
     var r = byId(state.registrants, c.id);
     if (!r) { render(); return; }
     r.pickedUp = c.next;
@@ -1500,6 +2159,7 @@
     apiGet("list").then(function (data) {
       if (!data || data.ok === false || view.confirm) return;
       state.registrants = data.registrants.map(mapServerRegistrant);
+      mergeLocalWalkins();
       render();
     }).catch(function () { /* stay on what we have */ });
   }, 20000);
@@ -1703,7 +2363,7 @@
     var page = null;
     var onPage = 0;
     ids.forEach(function (id) {
-      var r = byId(state.registrants, id);
+      var r = typeof id === "string" ? byId(state.registrants, id) : id;   // objects = blank walk-in cards
       if (!r) return;
       if (!page || onPage === g.perPage) {
         page = document.createElement("div");
@@ -1720,6 +2380,19 @@
       if (st.showEvent) {
         var evEl = document.createElement("div"); evEl.className = "print-card-event"; evEl.textContent = "Brisbane YSA Convention 2026";
         card.appendChild(evEl);
+      }
+      if (r.blank) {
+        // Walk-in card: empty box for them to write their name, then the QR and its code (always shown).
+        card.classList.add("is-blank");
+        var box = document.createElement("div"); box.className = "print-card-namebox";
+        box.innerHTML = "<span>Name</span>";
+        card.appendChild(box);
+        card.appendChild(makeQrCanvas(r.id, 400));
+        var bId = document.createElement("div"); bId.className = "print-card-id"; bId.textContent = r.id;
+        card.appendChild(bId);
+        page.appendChild(card);
+        onPage++;
+        return;
       }
       var nameEl = document.createElement("div"); nameEl.className = "print-card-name"; nameEl.textContent = r.name;
       card.appendChild(nameEl);
@@ -1791,6 +2464,7 @@
     if (BACKEND_URL) { loadFromBackend(); return; }
     stopCamera();
     state = clone(initialState);
+    mergeLocalWalkins();
     view = defaultView();
     lastUpdatedRegistrant = null;
     lastUpdatedActivity = null;
@@ -1868,6 +2542,7 @@
       var teamNamesAll = {};
       state.registrants.forEach(function (r) { teamNamesAll[r.team || "Unassigned"] = true; });
       var teamGroupCount = Object.keys(teamNamesAll).length;
+      var walkinCountAll = state.registrants.filter(function (r) { return r.walkin; }).length;
 
       if (!view.otherPage) {
         caption.textContent = "Quick-reference lists for specific jobs — pick one to open it.";
@@ -1886,11 +2561,15 @@
               '<span class="lookup-name">Team rosters</span>' +
               '<span class="lookup-meta">' + teamGroupCount + ' teams</span>' +
             '</button>' +
+            '<button class="lookup-item" data-action="otherPage" data-page="walkins" type="button">' +
+              '<span class="lookup-name">Walk-ins</span>' +
+              '<span class="lookup-meta">' + walkinCountAll + ' signed up on the day</span>' +
+            '</button>' +
           '</div>';
         return;
       }
 
-      var pageTitle = view.otherPage === "airport" ? "Airport pickup" : (view.otherPage === "dietary" ? "Dietary requirements" : "Team rosters");
+      var pageTitle = view.otherPage === "airport" ? "Airport pickup" : (view.otherPage === "dietary" ? "Dietary requirements" : (view.otherPage === "walkins" ? "Walk-ins" : "Team rosters"));
       caption.textContent = "Tap Back to return to the other lists.";
 
       var body = "";
@@ -1924,11 +2603,67 @@
           body = '<div class="empty-note">No one currently needs airport pickup.</div>';
         }
       } else if (view.otherPage === "dietary") {
-        var withDiet = state.registrants.filter(function (r) { return r.dietary; });
+        var withDiet = state.registrants.filter(function (r) { return r.dietary && String(r.dietary).trim(); });
+        // Known categories and the spellings that count as them. Anything else goes to "Other".
+        var DIET_CATS = [
+          ["Vegetarian", ["vegetarian", "veg", "veggie"]],
+          ["Vegan", ["vegan"]],
+          ["Gluten-free", ["glutenfree", "gf", "coeliac", "celiac", "nogluten"]],
+          ["Dairy-free", ["dairyfree", "nodairy", "lactosefree", "lactoseintolerant"]],
+          ["Nut allergy", ["nutallergy", "nutfree", "nonuts", "peanutallergy", "treenutallergy", "allergictonuts"]],
+          ["Halal", ["halal"]],
+          ["Kosher", ["kosher"]],
+          ["Pescatarian", ["pescatarian", "pescetarian"]]
+        ];
+        var dietCatOf = function (val) {
+          var key = String(val).toLowerCase().replace(/[^a-z]/g, "");
+          for (var i = 0; i < DIET_CATS.length; i++) {
+            if (DIET_CATS[i][1].indexOf(key) !== -1) return DIET_CATS[i][0];
+          }
+          return null;
+        };
+        var dietGroups = {}, dietOther = [];
+        withDiet.forEach(function (r) {
+          var c = dietCatOf(r.dietary);
+          if (c) { (dietGroups[c] = dietGroups[c] || []).push(r); } else { dietOther.push(r); }
+        });
+        var byName = function (a, b) { return String(a.name).localeCompare(String(b.name)); };
         body = withDiet.length
           ? '<div class="list-total">' + withDiet.length + ' with a dietary requirement</div>' +
-            '<div class="lanyard-list">' + withDiet.map(function (r) { return rowHtml(r, esc(r.ward) + ' &middot; ' + esc(r.dietary)); }).join("") + '</div>'
+            DIET_CATS.filter(function (c) { return dietGroups[c[0]]; }).map(function (c) {
+              var people = dietGroups[c[0]].sort(byName);
+              return '<div class="diet-head"><span>' + esc(c[0]) + '</span><span class="diet-head-count mono">' + people.length + '</span></div>' +
+                '<div class="lanyard-list">' + people.map(function (r) { return rowHtml(r, esc(r.ward)); }).join("") + '</div>';
+            }).join("") +
+            (dietOther.length
+              ? '<div class="diet-head diet-head-other"><span>Other</span><span class="diet-head-count mono">' + dietOther.length + '</span></div>' +
+                '<div class="lanyard-list">' + dietOther.sort(byName).map(function (r) {
+                  return '<button class="diet-other-item" data-action="scan" data-id="' + r.id + '" type="button">' +
+                    '<span class="diet-other-name">' + esc(r.name) + ' <span class="diet-other-ward">&middot; ' + esc(r.ward) + '</span></span>' +
+                    '<span class="diet-other-req">' + esc(r.dietary) + '</span>' +
+                  '</button>';
+                }).join("") + '</div>'
+              : '')
           : '<div class="empty-note">No dietary requirements on file.</div>';
+      } else if (view.otherPage === "walkins") {
+        var walkins = state.registrants.filter(function (r) { return r.walkin; });
+        walkins.sort(function (a, b) { return walkinNum(a.id) - walkinNum(b.id) || String(a.id).localeCompare(String(b.id)); });
+        var wCheckedIn = walkins.filter(function (r) { return r.checkedIn; }).length;
+        var wPending = walkins.filter(function (r) { return localWalkins[r.id] && !localWalkins[r.id].synced && BACKEND_URL; }).length;
+        body = walkins.length
+          ? '<div class="slot-head"><span class="slot-time">Total walk-ins</span>' +
+              '<span class="slot-count"><span class="slot-count-num">' + walkins.length + '</span><span class="slot-count-label">' + wCheckedIn + ' checked in</span></span>' +
+            '</div>' +
+            (wPending ? '<div class="pickup-summary"><span>' + wPending + ' saved on this phone only &mdash; will send to the Sheet when it reconnects</span></div>' : '') +
+            '<div class="lanyard-list">' + walkins.map(function (r) {
+              var lw = localWalkins[r.id];
+              var meta = '<span class="mono">' + esc(r.id) + '</span>' +
+                (r.ward && r.ward !== "Walk-in" ? ' &middot; ' + esc(r.ward) : '') +
+                (lw && lw.at ? ' &middot; signed up ' + esc(lw.at) : '') +
+                (r.lost ? ' &middot; <span style="color:var(--critical)">&#128680; lost</span>' : '');
+              return rowHtml(r, meta);
+            }).join("") + '</div>'
+          : '<div class="empty-note">No walk-ins yet. Scan a blank YSA-A card to sign someone up.</div>';
       } else if (view.otherPage === "teams") {
         var teamMap = {};
         state.registrants.forEach(function (r) {
@@ -1958,13 +2693,16 @@
       var presults = state.registrants.filter(function (r) {
         if (!pterm) return true;
         if (r.name.toLowerCase().indexOf(pterm) !== -1 ||
+          String(r.id).toLowerCase().indexOf(pterm) !== -1 ||
+          (pterm === "walk-in" || pterm === "walkin") && r.walkin ||
           r.ward.toLowerCase().indexOf(pterm) !== -1 ||
           r.stake.toLowerCase().indexOf(pterm) !== -1) return true;
         return !!r.details && r.details.some(function (kv) { return String(kv[1]).toLowerCase().indexOf(pterm) !== -1; });
       });
       var prows = presults.length
         ? presults.map(function (r) {
-            var lostBadge = r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '';
+            var lostBadge = (r.walkin ? ' <span class="pill pill-walkin pill-sm">Walk-in</span>' : '') +
+              (r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '');
             return '<button class="lookup-item has-avatar" data-action="scan" data-id="' + r.id + '">' +
               avatarHtml(r) +
               '<span class="lookup-text">' +
@@ -2015,6 +2753,24 @@
         '<h2 class="screen-title">Print lanyards</h2>' +
         (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
         presetPanelHtml(view.selected.size) +
+        (function () {
+          var wStart = view.walkinStart || nextWalkinNumber();
+          var wCount = view.walkinCount || gridFor(printSettings).perPage;
+          var used = state.registrants.filter(function (r) { return isWalkinCode(r.id); }).length;
+          return '<div class="walkin-print">' +
+            '<div class="walkin-print-head">Blank walk-in cards</div>' +
+            '<div class="walkin-print-sub">For people signing up on the day. Each card has an empty name box, a QR code and its code (YSA-A0001 onward). Scan one to sign someone up.</div>' +
+            '<div class="walkin-print-grid">' +
+              '<label>Start at number<input class="text-input mono" id="walkinStart" type="number" inputmode="numeric" min="1" max="9999" value="' + wStart + '"></label>' +
+              '<label>How many cards<input class="text-input mono" id="walkinCount" type="number" inputmode="numeric" min="1" max="400" value="' + wCount + '"></label>' +
+            '</div>' +
+            '<div class="walkin-print-range mono" id="walkinRange">' + walkinCode(wStart) + ' to ' + walkinCode(Math.min(9999, wStart + wCount - 1)) + '</div>' +
+            (walkinPrintedTo || used ? '<div class="walkin-print-sub" style="margin-top:0">' +
+              (walkinPrintedTo ? 'Printed on this phone up to ' + walkinCode(walkinPrintedTo) + '. ' : '') +
+              used + ' walk-in' + (used === 1 ? '' : 's') + ' signed up so far.</div>' : '') +
+            '<button class="btn btn-primary btn-block" data-action="printBlankCards" type="button">Print blank cards</button>' +
+          '</div>';
+        })() +
         '<div class="print-toolbar">' +
           '<input class="text-input" id="printSearch" type="text" placeholder="Search by name or ward" value="' + esc(view.printSearch) + '">' +
           '<div class="print-summary">' +
@@ -2037,6 +2793,19 @@
       if (searchInput) {
         searchInput.addEventListener("input", function () { setPrintSearch(searchInput.value); });
       }
+      // keep the "YSA-A0001 to YSA-A0004" line in step with the two number boxes, without re-rendering
+      var updateWalkinRange = function () {
+        var s = parseInt(document.getElementById("walkinStart").value, 10);
+        var c = parseInt(document.getElementById("walkinCount").value, 10);
+        if (s > 0) view.walkinStart = s;
+        if (c > 0) view.walkinCount = c;
+        var rangeEl = document.getElementById("walkinRange");
+        if (rangeEl && s > 0 && c > 0) rangeEl.textContent = walkinCode(Math.min(9999, s)) + " to " + walkinCode(Math.min(9999, s + c - 1));
+      };
+      ["walkinStart", "walkinCount"].forEach(function (fid) {
+        var f = document.getElementById(fid);
+        if (f) f.addEventListener("input", updateWalkinRange);
+      });
       return;
     }
 
@@ -2044,6 +2813,43 @@
       caption.textContent = "Point this app at your Apps Script backend to work off the live Sheet.";
       el.innerHTML =
         '<h2 class="screen-title">Settings</h2>' +
+        '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
+          '<div style="font-size:13.5px;font-weight:600">Something not working?</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+            '<button class="btn btn-primary" data-action="openProblemModal" type="button">Submit problem</button>' +
+            '<button class="btn" data-action="openProblems" type="button">View problems</button>' +
+          '</div>' +
+        '</div>' +
+        (function () {
+          var meLine = '<div class="staff-me"><span>This phone: <strong>' + (staffName ? esc(staffName) : 'no name yet') + '</strong>' + (staffRole ? ' &middot; ' + esc(staffRole) : '') + '</span>' +
+            '<button class="back-link" data-action="changeStaffName" type="button">' + (staffName ? 'Change' : 'Add name') + '</button></div>';
+          if (!BACKEND_URL) {
+            return '<div class="card staff-card"><div class="staff-head"><span>People with access</span></div>' + meLine +
+              '<div class="screen-sub" style="margin:0">Connect to a Sheet to see everyone who’s using it.</div></div>';
+          }
+          var list = (staffList || []).slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+          var rows = list.map(function (s) {
+            var me = s.deviceId === deviceId;
+            return '<div class="staff-row">' +
+              avatarHtml({ name: s.name, photo: null }) +
+              '<div class="staff-text">' +
+                '<span class="staff-name">' + esc(s.name || "(no name)") + (s.role ? ' <span class="pill pill-sm ' + roleClass(s.role) + '">' + esc(s.role) + '</span>' : '') +
+                  (me ? ' <span class="pill pill-walkin pill-sm">This phone</span>' : '') + '</span>' +
+                '<span class="staff-meta">' + (s.device ? esc(s.device) + ' &middot; ' : '') + 'last seen ' + esc(s.lastSeen || s.firstConnected || '') + '</span>' +
+              '</div>' +
+            '</div>';
+          }).join("");
+          return '<div class="card staff-card">' +
+            '<div class="staff-head"><span>People with access</span>' +
+              (staffList ? '<span class="pill pill-neutral pill-sm">' + list.length + '</span>' : '') +
+              '<button class="back-link" data-action="refreshStaff" type="button">Refresh</button>' +
+            '</div>' +
+            meLine +
+            (staffStatus ? '<div class="screen-sub" style="margin:0">' + esc(staffStatus) + '</div>' : '') +
+            (rows ? '<div class="staff-list">' + rows + '</div>' : (staffList ? '<div class="screen-sub" style="margin:0">No one has connected yet.</div>' : '')) +
+            '<div class="screen-sub" style="margin:0;font-size:11px">Phones that have connected to this Sheet, from the Staff tab. Anyone with the setup link can still connect, so keep it private.</div>' +
+          '</div>';
+        })() +
         '<div class="card">' +
           '<label for="settingsUrlInput" class="screen-sub" style="margin:0 0 6px">Apps Script /exec URL</label>' +
           '<input class="text-input mono" id="settingsUrlInput" type="text" placeholder="Paste your Apps Script /exec URL here" value="' + esc(settingsUrlDraft) + '" autocomplete="off" style="width:100%">' +
@@ -2052,7 +2858,50 @@
             '<button class="btn" id="resetBtn" type="button">Reload</button>' +
           '</div>' +
           '<div class="screen-sub mono" id="settingsStatusText" style="margin-top:10px">' + esc(lastStatusText) + '</div>' +
-        '</div>';
+        '</div>' +
+        '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
+          '<div style="font-size:13.5px;font-weight:600">Set up with a QR code</div>' +
+          '<div class="screen-sub" style="margin:0">Skip pasting the link: scan a setup QR that holds the Apps Script /exec URL, from a phone that’s already connected (their Settings → Share QR code).</div>' +
+          '<button class="btn btn-primary btn-block" data-action="openSetupCamera" type="button">Scan setup QR code</button>' +
+        '</div>' +
+        (function () {
+          var step = view.shareStep;
+          if (!step) {
+            return '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
+              '<div style="font-size:13.5px;font-weight:600">Share with another phone</div>' +
+              '<div class="screen-sub" style="margin:0">Shows two QR codes: one to open the app, then one to connect it to the Sheet.</div>' +
+              '<button class="btn btn-block" data-action="shareStep" data-step="1" type="button">Share QR code</button>' +
+            '</div>';
+          }
+          var head = '<div style="display:flex;align-items:center;justify-content:space-between">' +
+              '<span style="font-size:13.5px;font-weight:600">Share with another phone</span>' +
+              '<span class="mono" style="font-size:12px;color:var(--muted)">Step ' + step + ' of 2</span>' +
+            '</div>';
+          if (step === 1) {
+            return '<div class="card" style="display:flex;flex-direction:column;gap:10px">' + head +
+              '<div style="font-size:15px;font-weight:600;text-align:center">1. Scan with the phone’s camera to open the app</div>' +
+              '<div class="person-qr-box" id="shareQrBox" style="align-self:center"></div>' +
+              '<div class="screen-sub mono" style="margin:0;text-align:center;overflow-wrap:anywhere">' + esc(APP_SITE_URL) + '</div>' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+                '<button class="btn" data-action="shareStep" data-step="0" type="button">Close</button>' +
+                '<button class="btn btn-primary" data-action="shareStep" data-step="2" type="button">Next</button>' +
+              '</div>' +
+            '</div>';
+          }
+          return '<div class="card" style="display:flex;flex-direction:column;gap:10px">' + head +
+            (BACKEND_URL
+              ? '<div style="font-size:15px;font-weight:600;text-align:center">2. On their phone, open Settings → Scan setup QR code, then scan this</div>' +
+                '<div class="person-qr-box" id="shareQrBox" style="align-self:center"></div>' +
+                '<div class="screen-sub" style="margin:0;color:var(--critical);text-align:center">Only show this to staff — anyone who scans it can read the Sheet’s data.</div>'
+              : '<div class="empty-note">This phone isn’t connected to a Sheet yet, so there’s no setup code to share. Connect it above first.</div>') +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+              '<button class="btn" data-action="shareStep" data-step="1" type="button">Back</button>' +
+              '<button class="btn btn-primary" data-action="shareStep" data-step="0" type="button">Done</button>' +
+            '</div>' +
+          '</div>';
+        })();
+      var shareQrBox = document.getElementById("shareQrBox");
+      if (shareQrBox) shareQrBox.appendChild(makeQrCanvas(view.shareStep === 1 ? APP_SITE_URL : BACKEND_URL, 320));
 
       var settingsInput = document.getElementById("settingsUrlInput");
       if (settingsInput) {
@@ -2065,22 +2914,25 @@
 
     if (view.screen === "camera") {
       caption.textContent = "Real camera + live QR decoding, running in your browser.";
+      var setupMode = view.cameraMode === "setup";
       el.innerHTML =
         '<button class="back-link" data-action="cancelCamera" type="button">&larr; Cancel</button>' +
+        (setupMode ? '<h2 class="screen-title">Scan setup code</h2><p class="screen-sub" style="margin:0">Scan the setup QR shown on an already-connected phone (Settings &rarr; Share QR code &rarr; step 2).</p>' : '') +
         '<div id="cameraErrorBox" class="camera-error" style="display:none"></div>' +
         '<div class="camera-frame">' +
           '<video id="cameraVideo" autoplay muted playsinline></video>' +
           '<div class="camera-reticle"></div>' +
           '<div class="camera-msg" id="cameraMsg">Starting camera&hellip;</div>' +
         '</div>' +
+        (setupMode ? '' :
         '<div class="manual-entry">' +
           '<label for="manualId">Or type the ID printed on the lanyard</label>' +
           '<div class="manual-entry-row">' +
-            '<input class="text-input mono" id="manualId" type="text" placeholder="e.g. YSA-0231" autocomplete="off" autocapitalize="characters">' +
+            '<input class="text-input mono" id="manualId" type="text" placeholder="e.g. YSA-0001" autocomplete="off" autocapitalize="characters">' +
             '<button class="btn" data-action="manualGo" type="button">Go</button>' +
           '</div>' +
           '<div class="field-error" id="manualError"></div>' +
-        '</div>';
+        '</div>');
 
       // camera-error box is styled inline as hidden; startCamera()/errors will populate + reveal it
       var errBox = document.getElementById("cameraErrorBox");
@@ -2108,7 +2960,10 @@
         : '<span class="pill pill-neutral"><span class="pill-dot"></span>Not checked in</span>';
 
       var flags = "";
-      if (r.dietary) flags = '<div class="flag-row"><span class="pill pill-warning">' + esc(r.dietary) + '</span></div>';
+      var flagPills = [];
+      if (r.walkin) flagPills.push('<span class="pill pill-walkin">Walk-in</span>');
+      if (r.dietary) flagPills.push('<span class="pill pill-warning">' + esc(r.dietary) + '</span>');
+      if (flagPills.length) flags = '<div class="flag-row">' + flagPills.join("") + '</div>';
 
       var printNote = r.qrPrinted
         ? "Lanyard printed " + esc(r.qrPrintedAt)
@@ -2145,9 +3000,25 @@
 
       var body = "";
       if (view.personTab === "checkin") {
-        body = r.checkedIn
-          ? '<button class="btn btn-block" disabled>Already checked in</button>'
-          : '<button class="btn btn-primary btn-block" data-action="checkin" data-id="' + r.id + '" type="button">Check in</button>';
+        var doneCount = CHECKIN_TASKS.filter(function (t) { return r[t.field]; }).length;
+        var taskRows = CHECKIN_TASKS.map(function (t) {
+          var done = !!r[t.field];
+          var meta = [];
+          if (t.key === "shirt" && shirtText(r)) meta.push(esc(shirtText(r)));
+          meta.push(done ? "Done" + (r[t.atField] ? " " + esc(r[t.atField]) : "") : "Not yet");
+          return '<div class="task-row' + (done ? ' is-done' : '') + '">' +
+            '<div class="task-text"><span class="task-name">' + esc(t.label) + '</span><span class="task-meta">' + meta.join(" &middot; ") + '</span></div>' +
+            '<button class="pickup-check' + (done ? ' is-checked' : '') + '" data-action="askTask" data-id="' + r.id + '" data-task="' + t.key + '" type="button" role="checkbox" aria-checked="' + (done ? 'true' : 'false') + '" aria-label="' + esc(t.label) + ' for ' + esc(r.name) + '">&#10003;</button>' +
+          '</div>';
+        }).join("");
+        body =
+          '<div class="task-list">' +
+            '<div class="task-head"><span>Check-in list</span><span class="mono">' + doneCount + ' / ' + CHECKIN_TASKS.length + '</span></div>' +
+            taskRows +
+            '<div class="task-meta" style="text-align:center">' +
+              (r.checkedIn ? '&#10003; Checked in ' + esc(r.checkedInAt || '') : 'They\'re checked in once everything above is ticked') +
+            '</div>' +
+          '</div>';
       } else if (view.personTab === "details") {
         if (r.details) {
           body = '<div class="details-card">' + r.details.map(function (kv) {
@@ -2203,6 +3074,86 @@
 
       var qrBox = document.getElementById("personQrBox");
       if (qrBox) qrBox.appendChild(makeQrCanvas(r.id, 320));
+      return;
+    }
+
+    if (view.screen === "problems") {
+      caption.textContent = "Problems reported by staff, saved to the Problems tab of the Sheet.";
+      var plist = problemsList || [];
+      var openP = plist.filter(function (p) { return String(p.status).toLowerCase() !== "resolved"; });
+      var doneP = plist.filter(function (p) { return String(p.status).toLowerCase() === "resolved"; });
+      var probRow = function (p, resolved) {
+        return '<div class="problem-item' + (resolved ? ' is-resolved' : '') + '">' +
+          '<div class="problem-text">' + esc(p.text) + '</div>' +
+          '<div class="problem-meta">' +
+            (p.by ? esc(p.by) + ' &middot; ' : '') + esc(p.at || '') +
+            (p.local ? ' &middot; <span style="color:var(--warning)">this phone only</span>' : '') +
+            (resolved ? '<br>Resolved ' + esc(p.resolvedAt || '') + (p.resolvedBy ? ' by ' + esc(p.resolvedBy) : '') : '') +
+          '</div>' +
+          (resolved
+            ? '<button class="btn btn-sm" data-action="problemStatus" data-id="' + esc(p.id) + '" data-resolved="0" type="button">Reopen</button>'
+            : '<button class="btn btn-sm btn-yes" data-action="problemStatus" data-id="' + esc(p.id) + '" data-resolved="1" type="button">&#10003; Resolve</button>') +
+        '</div>';
+      };
+      el.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<button class="back-link" data-action="problemsBack" type="button">&larr; Back</button>' +
+          '<button class="back-link" data-action="openProblems" type="button">Refresh</button>' +
+        '</div>' +
+        '<h2 class="screen-title">Problems</h2>' +
+        (problemsStatus ? '<div class="empty-note">' + esc(problemsStatus) + '</div>' : '') +
+        '<div class="slot-head' + (openP.length ? '' : ' is-complete') + '"><span class="slot-time">Open</span>' +
+          '<span class="slot-count"><span class="slot-count-num">' + openP.length + '</span><span class="slot-count-label">' + doneP.length + ' resolved</span></span>' +
+        '</div>' +
+        (problemsList === null ? '' :
+          (openP.length ? '<div class="lanyard-list">' + openP.map(function (p) { return probRow(p, false); }).join("") + '</div>'
+                        : '<div class="empty-note">No open problems.</div>')) +
+        (doneP.length ? '<div class="list-group-head">Resolved</div><div class="lanyard-list">' + doneP.map(function (p) { return probRow(p, true); }).join("") + '</div>' : '') +
+        '<button class="btn btn-primary btn-block" data-action="openProblemModal" type="button">Submit problem</button>';
+      return;
+    }
+
+    if (view.screen === "walkin" && view.walkin) {
+      caption.textContent = "A blank walk-in card was scanned — link it to the person holding it.";
+      var wk = view.walkin;
+      var photoInner = wk.photo
+        ? '<img src="' + esc(wk.photo) + '" alt="Photo of the new walk-in">'
+        : (wk.photoBusy ? '&hellip;' : '&#128247;');
+      el.innerHTML =
+        '<button class="back-link" data-action="cancelWalkin" type="button">&larr; Cancel</button>' +
+        '<h2 class="screen-title">New walk-in</h2>' +
+        '<div class="walkin-card">' +
+          '<div class="walkin-code">' +
+            '<span class="walkin-code-label">Blank card</span>' +
+            '<span class="walkin-code-id mono">' + esc(wk.id) + '</span>' +
+          '</div>' +
+          '<label class="walkin-field">Full name (as they wrote it on the card)' +
+            '<input class="text-input" id="walkinName" type="text" autocomplete="off" autocapitalize="words" maxlength="80" value="' + esc(wk.name) + '">' +
+          '</label>' +
+          '<label class="walkin-field">Ward or stake <span style="color:var(--muted);font-weight:400">(optional)</span>' +
+            '<input class="text-input" id="walkinWard" type="text" autocomplete="off" autocapitalize="words" maxlength="80" value="' + esc(wk.ward) + '">' +
+          '</label>' +
+          '<div class="walkin-photo">' +
+            '<div class="walkin-photo-preview">' + photoInner + '</div>' +
+            '<div class="walkin-photo-text">' +
+              '<span>' + (wk.photo ? 'Photo taken. Retake it if their face isn’t clear.' : 'Take a clear photo of their face — security uses it to identify them.') + '</span>' +
+              '<label class="btn btn-sm" for="walkinPhotoInput" style="align-self:flex-start">' + (wk.photo ? 'Retake photo' : 'Take photo') + '</label>' +
+              '<input class="walkin-photo-input" id="walkinPhotoInput" type="file" accept="image/*" capture="environment">' +
+            '</div>' +
+          '</div>' +
+          (wk.error ? '<div class="field-error">' + esc(wk.error) + '</div>' : '') +
+          '<button class="btn btn-primary btn-block btn-lg" data-action="saveWalkin" type="button"' + (wk.saving || wk.photoBusy ? ' disabled' : '') + '>' +
+            (wk.saving ? 'Saving&hellip;' : 'Sign them up') +
+          '</button>' +
+          '<div class="walkin-note">After this, scanning ' + esc(wk.id) + ' brings up their name and photo like any other lanyard.</div>' +
+        '</div>';
+
+      var wName = document.getElementById("walkinName");
+      var wWard = document.getElementById("walkinWard");
+      var wPhoto = document.getElementById("walkinPhotoInput");
+      if (wName) wName.addEventListener("input", function () { wk.name = wName.value; });
+      if (wWard) wWard.addEventListener("input", function () { wk.ward = wWard.value; });
+      if (wPhoto) wPhoto.addEventListener("change", function () { if (wPhoto.files && wPhoto.files[0]) loadWalkinPhoto(wPhoto.files[0]); });
       return;
     }
 
@@ -2307,6 +3258,69 @@
     var shell = document.querySelector(".app-shell");
     var old = document.getElementById("confirmModal");
     if (old) old.remove();
+    var nmod = view.nameModal;
+    if (nmod && shell) {
+      var nmEl = document.createElement("div");
+      nmEl.id = "confirmModal";
+      nmEl.className = "modal-backdrop";
+      nmEl.innerHTML =
+        '<div class="modal problem-modal" role="dialog" aria-modal="true" aria-label="Your name">' +
+          '<h3 class="modal-title">' + (nmod.first ? 'Welcome! Who are you?' : 'Change your name or role') + '</h3>' +
+          '<div class="modal-sub" style="font-size:13px;text-align:center">' +
+            (nmod.first ? 'You’re connected to the Sheet. Your name and role go on the staff access list so the team knows who’s using this phone.'
+                        : 'This updates your name and role on the staff access list.') +
+          '</div>' +
+          '<input class="text-input" id="staffNameInput" type="text" maxlength="60" autocomplete="name" autocapitalize="words" placeholder="Your full name" value="' + esc(nmod.name) + '">' +
+          '<select class="text-input staff-role-select" id="staffRoleSelect" aria-label="Your role">' +
+            '<option value=""' + (nmod.role ? '' : ' selected') + ' disabled>Who are you?</option>' +
+            STAFF_ROLES.map(function (r) { return '<option value="' + r + '"' + (nmod.role === r ? ' selected' : '') + '>' + r + '</option>'; }).join("") +
+          '</select>' +
+          (nmod.error ? '<div class="field-error">' + esc(nmod.error) + '</div>' : '') +
+          (nmod.first
+            ? '<button class="btn btn-yes btn-block btn-lg" data-action="saveStaffName" type="button">Continue</button>'
+            : '<div class="modal-actions">' +
+                '<button class="btn" data-action="cancelNameModal" type="button">Cancel</button>' +
+                '<button class="btn btn-yes" data-action="saveStaffName" type="button">Save</button>' +
+              '</div>') +
+        '</div>';
+      shell.appendChild(nmEl);
+      var nIn = document.getElementById("staffNameInput");
+      if (nIn) {
+        nIn.addEventListener("input", function () { nmod.name = nIn.value; });
+        nIn.addEventListener("keydown", function (e) { if (e.key === "Enter") saveStaffName(); });
+      }
+      var rSel = document.getElementById("staffRoleSelect");
+      if (rSel) rSel.addEventListener("change", function () { nmod.role = rSel.value; });
+      return;
+    }
+    var pm = view.problemModal;
+    if (pm && shell) {
+      var pmEl = document.createElement("div");
+      pmEl.id = "confirmModal";
+      pmEl.className = "modal-backdrop";
+      pmEl.innerHTML = pm.sent
+        ? '<div class="modal" role="dialog" aria-modal="true" aria-label="Problem submitted">' +
+            '<h3 class="modal-title">&#10003; Problem submitted</h3>' +
+            '<div class="modal-sub" style="font-size:13px">' + esc(pm.note || "") + '</div>' +
+            '<button class="btn btn-primary btn-block" data-action="closeProblemModal" type="button">Done</button>' +
+          '</div>'
+        : '<div class="modal problem-modal" role="dialog" aria-modal="true" aria-label="Submit a problem">' +
+            '<h3 class="modal-title">Submit a problem</h3>' +
+            '<textarea class="text-input problem-textarea" id="problemText" rows="5" maxlength="2000" placeholder="What happened? e.g. scanner won’t read Team Blue lanyards">' + esc(pm.text) + '</textarea>' +
+            '<input class="text-input" id="problemName" type="text" maxlength="60" autocomplete="name" placeholder="Your name (optional)" value="' + esc(pm.name) + '">' +
+            (pm.error ? '<div class="field-error">' + esc(pm.error) + '</div>' : '') +
+            '<div class="modal-actions">' +
+              '<button class="btn" data-action="closeProblemModal" type="button">Cancel</button>' +
+              '<button class="btn btn-yes" data-action="submitProblem" type="button"' + (pm.sending ? ' disabled' : '') + '>' + (pm.sending ? 'Sending…' : 'Submit') + '</button>' +
+            '</div>' +
+          '</div>';
+      shell.appendChild(pmEl);
+      var pText = document.getElementById("problemText");
+      var pName = document.getElementById("problemName");
+      if (pText) pText.addEventListener("input", function () { pm.text = pText.value; });
+      if (pName) pName.addEventListener("input", function () { pm.name = pName.value; });
+      return;
+    }
     var c = view.confirm;
     if (!c || !shell) return;
     var m = document.createElement("div");
@@ -2328,6 +3342,27 @@
     }
     var r = byId(state.registrants, c.id);
     if (!r) return;
+    if (c.kind === "task") {
+      var tk = findTask(c.task);
+      var sub = tk && tk.key === "shirt" && shirtText(r) ? esc(shirtText(r)) + ' &middot; ' : '';
+      m.innerHTML =
+        '<div class="modal" role="dialog" aria-modal="true" aria-label="Confirm ' + esc(tk ? tk.label : "") + '">' +
+          '<h3 class="modal-title">' + (c.next ? esc(tk.label) : 'Undo ' + esc(tk.label.toLowerCase()) + '?') + '</h3>' +
+          '<div class="modal-person">' + avatarHtml(r) +
+            '<div class="modal-name">' + esc(r.name) + '</div>' +
+            '<div class="modal-sub">' + sub + esc(r.team || r.ward) + '</div>' +
+          '</div>' +
+          '<div class="modal-sub" style="font-size:14px;color:var(--ink)">' +
+            (c.next ? (tk.key === "shirt" ? 'Have they collected their shirt?' : 'Have they been given their check-in pack?') : 'Mark this as not done yet?') +
+          '</div>' +
+          '<div class="modal-actions">' +
+            '<button class="btn" data-action="confirmNo" type="button">No</button>' +
+            '<button class="btn btn-yes" data-action="confirmYes" type="button">Yes</button>' +
+          '</div>' +
+        '</div>';
+      shell.appendChild(m);
+      return;
+    }
     m.innerHTML =
       '<div class="modal" role="dialog" aria-modal="true" aria-label="Confirm pickup">' +
         '<h3 class="modal-title">' + (c.next ? 'Confirm airport pickup' : 'Undo pickup?') + '</h3>' +
@@ -2365,6 +3400,7 @@
       else if (action === "backFromScanned") backFromScanned();
       else if (action === "personTab") setPersonTab(t.getAttribute("data-tab"));
       else if (action === "askPickup") askPickup(t.getAttribute("data-id"));
+      else if (action === "askTask") askTask(t.getAttribute("data-id"), t.getAttribute("data-task"));
       else if (action === "confirmYes") answerPickup(true);
       else if (action === "confirmNo") answerPickup(false);
       else if (action === "presetToggleEdit") { view.presetEditOpen = !view.presetEditOpen; render(); }
@@ -2379,6 +3415,21 @@
       else if (action === "selectAllUnprinted") selectAllUnprinted();
       else if (action === "clearSelection") clearSelection();
       else if (action === "generatePrint") generateAndPrint();
+      else if (action === "printBlankCards") printBlankCards();
+      else if (action === "openSetupCamera") openCamera("setup");
+      else if (action === "saveStaffName") saveStaffName();
+      else if (action === "changeStaffName") { view.nameModal = { name: staffName, role: staffRole, error: "", first: !staffName || !staffRole }; render(); focusNameInput(); }
+      else if (action === "cancelNameModal") { view.nameModal = null; render(); }
+      else if (action === "refreshStaff") { staffStatus = "Loading…"; render(); loadStaff(); }
+      else if (action === "openProblemModal") openProblemModal();
+      else if (action === "closeProblemModal") closeProblemModal();
+      else if (action === "submitProblem") submitProblem();
+      else if (action === "openProblems") openProblems();
+      else if (action === "problemsBack") { view.screen = "tab"; view.activeTab = "settings"; render(); }
+      else if (action === "problemStatus") setProblemStatus(t.getAttribute("data-id"), t.getAttribute("data-resolved") === "1");
+      else if (action === "shareStep") { view.shareStep = parseInt(t.getAttribute("data-step"), 10) || 0; render(); }
+      else if (action === "saveWalkin") saveWalkin();
+      else if (action === "cancelWalkin") cancelWalkin();
       return;
     }
     if (e.target && e.target.id === "resetBtn") resetDemo();

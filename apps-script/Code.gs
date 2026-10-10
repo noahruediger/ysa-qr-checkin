@@ -54,7 +54,7 @@ function rowToRegistrant_(row, map) {
   var dietaryYes = yes(g('Dietary Restrictions'));
   return {
     id: String(g('QR ID')).trim(),
-    name: (g('Preferred Name') || g('First Name')) + ' ' + g('Last Name'),
+    name: String((g('Preferred Name') || g('First Name')) + ' ' + g('Last Name')).trim(),
     firstName: g('First Name'),
     lastName: g('Last Name'),
     ward: g('Ward'),
@@ -72,7 +72,12 @@ function rowToRegistrant_(row, map) {
     bookings: bookings,
     photo: photoFor_(row, map),
     pickedUp: map['Picked Up'] ? yes(row[map['Picked Up'] - 1]) : false,
-    pickedUpAt: map['Picked Up At'] ? (row[map['Picked Up At'] - 1] || null) : null
+    pickedUpAt: map['Picked Up At'] ? (row[map['Picked Up At'] - 1] || null) : null,
+    packGiven: map['Pack Given'] ? yes(row[map['Pack Given'] - 1]) : false,
+    packGivenAt: map['Pack Given At'] ? (row[map['Pack Given At'] - 1] || null) : null,
+    shirtGiven: map['Shirt Given'] ? yes(row[map['Shirt Given'] - 1]) : false,
+    shirtGivenAt: map['Shirt Given At'] ? (row[map['Shirt Given At'] - 1] || null) : null,
+    walkin: map['Walk-in'] ? yes(row[map['Walk-in'] - 1]) : false
   };
 }
 
@@ -128,6 +133,8 @@ function doGet(e) {
     if (action === 'photo') {
       return jsonOut_(photoDataUri_(e.parameter.id));
     }
+    if (action === 'problems') return jsonOut_(listProblems_());   // Problems.gs
+    if (action === 'staff') return jsonOut_(listStaff_());         // Staff.gs
     return jsonOut_({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
@@ -211,6 +218,32 @@ function doPost(e) {
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowP, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
+    if (action === 'uncheckin') {
+      var rowU = findRowByQrId_(reg, body.id);
+      if (rowU === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
+      sh.getRange(rowU, col_(map, 'Checked In')).setValue('No');
+      sh.getRange(rowU, col_(map, 'Checked In At')).setValue('');
+      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowU, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+    }
+
+    // Check-in list ticks: task "pack" -> Pack Given / Pack Given At, "shirt" -> Shirt Given / Shirt Given At
+    if (action === 'markTask') {
+      var TASK_COLUMNS = { pack: ['Pack Given', 'Pack Given At'], shirt: ['Shirt Given', 'Shirt Given At'] };
+      var cols = TASK_COLUMNS[body.task];
+      if (!cols) return jsonOut_({ ok: false, error: 'Unknown task: ' + body.task });
+      var rowT = findRowByQrId_(reg, body.id);
+      if (rowT === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
+      var on = body.value === true || String(body.value).toLowerCase() === 'true';
+      sh.getRange(rowT, col_(map, cols[0])).setValue(on ? 'Yes' : 'No');
+      sh.getRange(rowT, col_(map, cols[1])).setValue(on ? nowStamp_() : '');
+      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowT, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+    }
+
+    if (action === 'registerWalkin') return jsonOut_(registerWalkin_(body, reg));       // Walkin.gs
+    if (action === 'reportProblem') return jsonOut_(reportProblem_(body));              // Problems.gs
+    if (action === 'setProblemStatus') return jsonOut_(setProblemStatus_(body));        // Problems.gs
+    if (action === 'registerStaff') return jsonOut_(registerStaff_(body));              // Staff.gs
+
     return jsonOut_({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
@@ -221,7 +254,7 @@ function doPost(e) {
 
 // ===================== Photo / pickup / full-details additions =====================
 // Added columns are created automatically on the Registrants tab the first time the script runs.
-var EXTRA_COLUMNS = ['Photo URL', 'Picked Up', 'Picked Up At'];
+var EXTRA_COLUMNS = ['Photo URL', 'Picked Up', 'Picked Up At', 'Pack Given', 'Pack Given At', 'Shirt Given', 'Shirt Given At'];
 // Columns that are never sent to phones (government-style ID images etc.). Edit to suit.
 var HIDE_COLUMNS = [/id photo/i, /passport/i, /licen[cs]e/i, /^please attach a clear/i];
 
