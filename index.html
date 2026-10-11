@@ -1546,6 +1546,8 @@
       shareStep: 0,           // Settings "Share QR code": 0 closed | 1 app website | 2 Sheet setup link
       walkinStart: null,       // blank-card print form (null = suggest the next unused number)
       walkinCount: null,
+      walkinsTab: "list",      // Other > Walk-ins: "list" (signed up) | "print" (blank cards)
+      walkinToast: "",
       confirm: null            // { id, next } while the pickup confirmation prompt is open
     };
   }
@@ -1979,7 +1981,36 @@
     }).catch(function (err) { problemsStatus = "Couldn’t update the Sheet (" + err + ")."; render(); });
   }
 
-  // ---------- blank walk-in cards (Print tab) ----------
+  function walkinsTabsHtml() {
+    var t = view.walkinsTab === "print" ? "print" : "list";
+    return '<div class="tabs">' +
+      '<button class="tab-btn' + (t === "list" ? ' active' : '') + '" data-action="walkinsTab" data-tab="list" type="button">Signed up</button>' +
+      '<button class="tab-btn' + (t === "print" ? ' active' : '') + '" data-action="walkinsTab" data-tab="print" type="button">Print blank cards</button>' +
+    '</div>';
+  }
+
+  // ---------- Other > Walk-ins > Print blank cards ----------
+  function walkinPrintHtml() {
+    var wStart = view.walkinStart || nextWalkinNumber();
+    var wCount = view.walkinCount || gridFor(printSettings).perPage;
+    var used = state.registrants.filter(function (r) { return isWalkinCode(r.id); }).length;
+    return '<div class="walkin-print">' +
+      '<div class="walkin-print-head">Blank walk-in cards</div>' +
+      '<div class="walkin-print-sub">For people signing up on the day. Each card has an empty name box, a QR code and its code (YSA-A0001 onward). Scan one to sign someone up.</div>' +
+      '<div class="walkin-print-sub" style="margin-top:0">Uses the card layout chosen in the Print tab (' + esc((findPreset(activePresetId) || BUILTIN_PRESETS[0]).name) + ').</div>' +
+      '<div class="walkin-print-grid">' +
+        '<label>Start at number<input class="text-input mono" id="walkinStart" type="number" inputmode="numeric" min="1" max="9999" value="' + wStart + '"></label>' +
+        '<label>How many cards<input class="text-input mono" id="walkinCount" type="number" inputmode="numeric" min="1" max="400" value="' + wCount + '"></label>' +
+      '</div>' +
+      '<div class="walkin-print-range mono" id="walkinRange">' + walkinCode(wStart) + ' to ' + walkinCode(Math.min(9999, wStart + wCount - 1)) + '</div>' +
+      (walkinPrintedTo || used ? '<div class="walkin-print-sub" style="margin-top:0">' +
+        (walkinPrintedTo ? 'Printed on this phone up to ' + walkinCode(walkinPrintedTo) + '. ' : '') +
+        used + ' walk-in' + (used === 1 ? '' : 's') + ' signed up so far.</div>' : '') +
+      '<button class="btn btn-primary btn-block" data-action="printBlankCards" type="button">Print blank cards</button>' +
+    '</div>';
+  }
+
+  // ---------- blank walk-in cards (printing) ----------
   function nextWalkinNumber() {
     var hi = walkinPrintedTo;
     state.registrants.forEach(function (r) { var n = walkinNum(r.id); if (n > hi) hi = n; });
@@ -2003,7 +2034,7 @@
     }
     view.walkinStart = null;   // next time, suggest the number after this batch
     lastPrintedBatch = [];
-    view.printToast = count + " blank walk-in card" + (count === 1 ? "" : "s") + " sent to print (" + walkinCode(start) + " to " + walkinCode(last) + ").";
+    view.walkinToast = count + " blank walk-in card" + (count === 1 ? "" : "s") + " sent to print (" + walkinCode(start) + " to " + walkinCode(last) + ").";
     document.body.classList.add("printing");
     window.print();
   }
@@ -2651,12 +2682,16 @@
                 }).join("") + '</div>'
               : '')
           : '<div class="empty-note">No dietary requirements on file.</div>';
+      } else if (view.otherPage === "walkins" && view.walkinsTab === "print") {
+        body = walkinsTabsHtml() +
+          (view.walkinToast ? '<div class="toast">' + esc(view.walkinToast) + '</div>' : '') +
+          walkinPrintHtml();
       } else if (view.otherPage === "walkins") {
         var walkins = state.registrants.filter(function (r) { return r.walkin; });
         walkins.sort(function (a, b) { return walkinNum(a.id) - walkinNum(b.id) || String(a.id).localeCompare(String(b.id)); });
         var wCheckedIn = walkins.filter(function (r) { return r.checkedIn; }).length;
         var wPending = walkins.filter(function (r) { return localWalkins[r.id] && !localWalkins[r.id].synced && BACKEND_URL; }).length;
-        body = walkins.length
+        body = walkinsTabsHtml() + (walkins.length
           ? '<div class="slot-head"><span class="slot-time">Total walk-ins</span>' +
               '<span class="slot-count"><span class="slot-count-num">' + walkins.length + '</span><span class="slot-count-label">' + wCheckedIn + ' checked in</span></span>' +
             '</div>' +
@@ -2669,7 +2704,7 @@
                 (r.lost ? ' &middot; <span style="color:var(--critical)">&#128680; lost</span>' : '');
               return rowHtml(r, meta);
             }).join("") + '</div>'
-          : '<div class="empty-note">No walk-ins yet. Scan a blank YSA-A card to sign someone up.</div>';
+          : '<div class="empty-note">No walk-ins yet. Print blank cards, then scan one to sign someone up.</div>');
       } else if (view.otherPage === "teams") {
         var teamMap = {};
         state.registrants.forEach(function (r) {
@@ -2690,6 +2725,19 @@
           '<h2 class="screen-title">' + esc(pageTitle) + '</h2>' +
           '<button class="back-link" data-action="otherBack" type="button">Back</button>' +
         '</div>' + body;
+      // keep the "YSA-A0001 to YSA-A0004" line in step with the two number boxes, without re-rendering
+      var updateWalkinRange = function () {
+        var s = parseInt(document.getElementById("walkinStart").value, 10);
+        var c = parseInt(document.getElementById("walkinCount").value, 10);
+        if (s > 0) view.walkinStart = s;
+        if (c > 0) view.walkinCount = c;
+        var rangeEl = document.getElementById("walkinRange");
+        if (rangeEl && s > 0 && c > 0) rangeEl.textContent = walkinCode(Math.min(9999, s)) + " to " + walkinCode(Math.min(9999, s + c - 1));
+      };
+      ["walkinStart", "walkinCount"].forEach(function (fid) {
+        var f = document.getElementById(fid);
+        if (f) f.addEventListener("input", updateWalkinRange);
+      });
       return;
     }
 
@@ -2759,24 +2807,6 @@
         '<h2 class="screen-title">Print lanyards</h2>' +
         (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
         presetPanelHtml(view.selected.size) +
-        (function () {
-          var wStart = view.walkinStart || nextWalkinNumber();
-          var wCount = view.walkinCount || gridFor(printSettings).perPage;
-          var used = state.registrants.filter(function (r) { return isWalkinCode(r.id); }).length;
-          return '<div class="walkin-print">' +
-            '<div class="walkin-print-head">Blank walk-in cards</div>' +
-            '<div class="walkin-print-sub">For people signing up on the day. Each card has an empty name box, a QR code and its code (YSA-A0001 onward). Scan one to sign someone up.</div>' +
-            '<div class="walkin-print-grid">' +
-              '<label>Start at number<input class="text-input mono" id="walkinStart" type="number" inputmode="numeric" min="1" max="9999" value="' + wStart + '"></label>' +
-              '<label>How many cards<input class="text-input mono" id="walkinCount" type="number" inputmode="numeric" min="1" max="400" value="' + wCount + '"></label>' +
-            '</div>' +
-            '<div class="walkin-print-range mono" id="walkinRange">' + walkinCode(wStart) + ' to ' + walkinCode(Math.min(9999, wStart + wCount - 1)) + '</div>' +
-            (walkinPrintedTo || used ? '<div class="walkin-print-sub" style="margin-top:0">' +
-              (walkinPrintedTo ? 'Printed on this phone up to ' + walkinCode(walkinPrintedTo) + '. ' : '') +
-              used + ' walk-in' + (used === 1 ? '' : 's') + ' signed up so far.</div>' : '') +
-            '<button class="btn btn-primary btn-block" data-action="printBlankCards" type="button">Print blank cards</button>' +
-          '</div>';
-        })() +
         '<div class="print-toolbar">' +
           '<input class="text-input" id="printSearch" type="text" placeholder="Search by name or ward" value="' + esc(view.printSearch) + '">' +
           '<div class="print-summary">' +
@@ -2799,19 +2829,6 @@
       if (searchInput) {
         searchInput.addEventListener("input", function () { setPrintSearch(searchInput.value); });
       }
-      // keep the "YSA-A0001 to YSA-A0004" line in step with the two number boxes, without re-rendering
-      var updateWalkinRange = function () {
-        var s = parseInt(document.getElementById("walkinStart").value, 10);
-        var c = parseInt(document.getElementById("walkinCount").value, 10);
-        if (s > 0) view.walkinStart = s;
-        if (c > 0) view.walkinCount = c;
-        var rangeEl = document.getElementById("walkinRange");
-        if (rangeEl && s > 0 && c > 0) rangeEl.textContent = walkinCode(Math.min(9999, s)) + " to " + walkinCode(Math.min(9999, s + c - 1));
-      };
-      ["walkinStart", "walkinCount"].forEach(function (fid) {
-        var f = document.getElementById(fid);
-        if (f) f.addEventListener("input", updateWalkinRange);
-      });
       return;
     }
 
@@ -3422,6 +3439,7 @@
       else if (action === "clearSelection") clearSelection();
       else if (action === "generatePrint") generateAndPrint();
       else if (action === "printBlankCards") printBlankCards();
+      else if (action === "walkinsTab") { view.walkinsTab = t.getAttribute("data-tab"); view.walkinToast = ""; render(); }
       else if (action === "openSetupCamera") openCamera("setup");
       else if (action === "saveStaffName") saveStaffName();
       else if (action === "changeStaffName") { view.nameModal = { name: staffName, role: staffRole, error: "", first: !staffName || !staffRole }; render(); focusNameInput(); }
