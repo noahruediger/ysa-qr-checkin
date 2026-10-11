@@ -1538,7 +1538,6 @@
       printSearch: "",
       selected: new Set(),
       printToast: "",
-      presetEditOpen: false,
       walkin: null,            // draft while the walk-in sign-up screen is open
       cameraMode: null,        // null = lanyard scanning | "setup" = scanning a setup QR (Apps Script URL)
       problemModal: null,      // draft while the "Submit problem" pop-up is open
@@ -1992,12 +1991,11 @@
   // ---------- Other > Walk-ins > Print blank cards ----------
   function walkinPrintHtml() {
     var wStart = view.walkinStart || nextWalkinNumber();
-    var wCount = view.walkinCount || gridFor(printSettings).perPage;
+    var wCount = view.walkinCount || gridFor(PSCOPE.walkin.st).perPage;
     var used = state.registrants.filter(function (r) { return isWalkinCode(r.id); }).length;
     return '<div class="walkin-print">' +
       '<div class="walkin-print-head">Blank walk-in cards</div>' +
       '<div class="walkin-print-sub">For people signing up on the day. Each card has an empty name box, a QR code and its code (YSA-A0001 onward). Scan one to sign someone up.</div>' +
-      '<div class="walkin-print-sub" style="margin-top:0">Uses the card layout chosen in the Print tab (' + esc((findPreset(activePresetId) || BUILTIN_PRESETS[0]).name) + ').</div>' +
       '<div class="walkin-print-grid">' +
         '<label>Start at number<input class="text-input mono" id="walkinStart" type="number" inputmode="numeric" min="1" max="9999" value="' + wStart + '"></label>' +
         '<label>How many cards<input class="text-input mono" id="walkinCount" type="number" inputmode="numeric" min="1" max="400" value="' + wCount + '"></label>' +
@@ -2021,12 +2019,12 @@
     var startEl = document.getElementById("walkinStart");
     var countEl = document.getElementById("walkinCount");
     var start = Math.max(1, Math.min(9999, parseInt(startEl && startEl.value, 10) || nextWalkinNumber()));
-    var count = Math.max(1, Math.min(400, parseInt(countEl && countEl.value, 10) || gridFor(printSettings).perPage));
+    var count = Math.max(1, Math.min(400, parseInt(countEl && countEl.value, 10) || gridFor(PSCOPE.walkin.st).perPage));
     if (start + count - 1 > 9999) count = 9999 - start + 1;
     view.walkinStart = start; view.walkinCount = count;
     var items = [];
     for (var i = 0; i < count; i++) items.push({ id: walkinCode(start + i), blank: true });
-    renderPrintCards(items);
+    renderPrintCards(items, PSCOPE.walkin.st);
     var last = start + count - 1;
     if (last > walkinPrintedTo) {
       walkinPrintedTo = last;
@@ -2170,7 +2168,7 @@
     var c = view.confirm;
     view.confirm = null;
     if (!yes || !c) { render(); return; }
-    if (c.kind === "deletePreset") { deletePreset(); return; }
+    if (c.kind === "deletePreset") { deletePreset(c.scope); return; }
     if (c.kind === "task") { answerTask(c); return; }
     var r = byId(state.registrants, c.id);
     if (!r) { render(); return; }
@@ -2250,13 +2248,22 @@
     { id: "lanyard4", name: "Lanyard 82×130 · 4 per page", cardW: 82, cardH: 130, gap: 10, qr: 50, nameSize: 22, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: true, showId: true },
     { id: "lanyard4team", name: "Lanyard 82×130 · with team", cardW: 82, cardH: 130, gap: 10, qr: 46, nameSize: 22, topPad: 17, cutLines: true, showEvent: true, showTeam: true, showDietary: true, showId: true },
     { id: "big1", name: "Big card · 1 per page (A5)", cardW: 148, cardH: 210, gap: 10, qr: 90, nameSize: 40, topPad: 24, cutLines: true, showEvent: true, showTeam: true, showDietary: true, showId: true },
-    { id: "proof", name: "Draft proof · small, saves paper", cardW: 56, cardH: 80, gap: 6, qr: 34, nameSize: 13, topPad: 8, cutLines: true, showEvent: false, showTeam: false, showDietary: true, showId: true }
+    { id: "proof", name: "Draft proof · small, saves paper", cardW: 56, cardH: 80, gap: 6, qr: 34, nameSize: 13, topPad: 8, cutLines: true, showEvent: false, showTeam: false, showDietary: true, showId: true },
+    { id: "walkin4", name: "Walk-in card 82×130 · 4 per page", cardW: 82, cardH: 130, gap: 10, qr: 50, nameSize: 26, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true }
   ];
   var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showId"];
   var customPresets = [];
   try { customPresets = JSON.parse(localStorage.getItem("qrCheckinPrintPresets") || "[]") || []; } catch (e) { customPresets = []; }
-  var activePresetId = "lanyard4";
-  try { activePresetId = localStorage.getItem("qrCheckinPrintActive") || "lanyard4"; } catch (e) { /* fine */ }
+
+  // Two separate layout choices: registrant lanyards (Print tab) and blank walk-in cards
+  // (Other > Walk-ins > Print blank cards). Saved layouts are shared; the choice and edits are not.
+  var PSCOPE = {
+    lanyard: { storeKey: "qrCheckinPrintActive", def: "lanyard4", id: null, st: null, edit: false },
+    walkin:  { storeKey: "qrCheckinWalkinPrintActive", def: "walkin4", id: null, st: null, edit: false }
+  };
+  // which layout (lanyard / walkin) a clicked control belongs to
+  function pscopeOf(el) { var box = el && el.closest ? el.closest("[data-pscope]") : null; return box ? box.getAttribute("data-pscope") : "lanyard"; }
+  function scopeOf(name) { return PSCOPE[name === "walkin" ? "walkin" : "lanyard"]; }
 
   function allPresets() { return BUILTIN_PRESETS.concat(customPresets); }
   function findPreset(id) { var a = allPresets(); for (var i = 0; i < a.length; i++) { if (a[i].id === id) return a[i]; } return null; }
@@ -2264,7 +2271,7 @@
   function persistPresets() {
     try {
       localStorage.setItem("qrCheckinPrintPresets", JSON.stringify(customPresets));
-      localStorage.setItem("qrCheckinPrintActive", activePresetId);
+      Object.keys(PSCOPE).forEach(function (k) { localStorage.setItem(PSCOPE[k].storeKey, PSCOPE[k].id); });
     } catch (e) { /* fine without persistence */ }
   }
   function num(v, lo, hi, dflt) { v = parseFloat(v); if (!isFinite(v)) v = dflt; return Math.min(hi, Math.max(lo, v)); }
@@ -2280,74 +2287,90 @@
     };
   }
   function presetSettings(pr) { var o = {}; PRESET_FIELDS.forEach(function (f) { o[f] = pr[f]; }); return normalizeSettings(o); }
-  var printSettings = presetSettings(findPreset(activePresetId) || BUILTIN_PRESETS[0]);
-  if (!findPreset(activePresetId)) activePresetId = BUILTIN_PRESETS[0].id;
+  Object.keys(PSCOPE).forEach(function (k) {
+    var sc = PSCOPE[k];
+    var saved = null;
+    try { saved = localStorage.getItem(sc.storeKey); } catch (e) { saved = null; }
+    sc.id = saved && findPreset(saved) ? saved : sc.def;
+    sc.st = presetSettings(findPreset(sc.id));
+  });
 
   function gridFor(st) {
     var cols = Math.max(1, Math.floor((PAGE.w - 2 * PAGE.margin + st.gap) / (st.cardW + st.gap)));
     var rows = Math.max(1, Math.floor((PAGE.h - 2 * PAGE.margin + st.gap) / (st.cardH + st.gap)));
     return { cols: cols, rows: rows, perPage: cols * rows };
   }
-  function presetModified() {
-    var base = findPreset(activePresetId);
+  function presetModified(scope) {
+    var sc = scopeOf(scope), base = findPreset(sc.id);
     if (!base) return false;
-    return JSON.stringify(presetSettings(base)) !== JSON.stringify(printSettings);
+    return JSON.stringify(presetSettings(base)) !== JSON.stringify(sc.st);
   }
-  function selectPreset(id) {
-    var pr = findPreset(id);
+  function selectPreset(scope, id) {
+    var sc = scopeOf(scope), pr = findPreset(id);
     if (!pr) return;
-    activePresetId = id;
-    printSettings = presetSettings(pr);
+    sc.id = id;
+    sc.st = presetSettings(pr);
     persistPresets();
     render();
   }
-  function setPresetField(field, value) {
+  function setPresetField(scope, field, value) {
     if (PRESET_FIELDS.indexOf(field) === -1) return;
-    var o = clone(printSettings);
+    var sc = scopeOf(scope);
+    var o = clone(sc.st);
     o[field] = value;
-    printSettings = normalizeSettings(o);
+    sc.st = normalizeSettings(o);
     render();
   }
-  function savePresetNew() {
-    var input = document.getElementById("presetName");
+  function savePresetNew(scope) {
+    var sc = scopeOf(scope);
+    var input = document.getElementById("presetName-" + scope);
     var name = (input && input.value || "").trim();
     if (!name) { if (input) input.focus(); return; }
-    var pr = clone(printSettings);
+    var pr = clone(sc.st);
     pr.id = "custom-" + Date.now().toString(36);
     pr.name = name;
     customPresets.push(pr);
-    activePresetId = pr.id;
+    sc.id = pr.id;
     persistPresets();
     render();
   }
-  function savePresetOver() {
+  function savePresetOver(scope) {
+    var sc = scopeOf(scope);
     for (var i = 0; i < customPresets.length; i++) {
-      if (customPresets[i].id === activePresetId) {
+      if (customPresets[i].id === sc.id) {
         var keep = { id: customPresets[i].id, name: customPresets[i].name };
-        customPresets[i] = Object.assign(keep, clone(printSettings));
+        customPresets[i] = Object.assign(keep, clone(sc.st));
       }
     }
+    // the other place using this saved layout picks up the change too (unless it has its own unsaved edits)
+    Object.keys(PSCOPE).forEach(function (k) {
+      if (PSCOPE[k] !== sc && PSCOPE[k].id === sc.id && !presetModified(k)) PSCOPE[k].st = clone(sc.st);
+    });
     persistPresets();
     render();
   }
-  function deletePreset() {
-    customPresets = customPresets.filter(function (p) { return p.id !== activePresetId; });
-    activePresetId = BUILTIN_PRESETS[0].id;
-    printSettings = presetSettings(BUILTIN_PRESETS[0]);
+  function deletePreset(scope) {
+    var gone = scopeOf(scope).id;
+    customPresets = customPresets.filter(function (p) { return p.id !== gone; });
+    Object.keys(PSCOPE).forEach(function (k) {
+      if (PSCOPE[k].id === gone) { PSCOPE[k].id = PSCOPE[k].def; PSCOPE[k].st = presetSettings(findPreset(PSCOPE[k].def)); }
+    });
     persistPresets();
     render();
   }
 
-  function presetPanelHtml(nSelected) {
-    var st = printSettings, g = gridFor(st);
-    var active = findPreset(activePresetId);
-    var mod = presetModified();
+  function presetPanelHtml(scope, nCards) {
+    var sc = scopeOf(scope);
+    var isWalkin = scope === "walkin";
+    var st = sc.st, g = gridFor(st);
+    var active = findPreset(sc.id);
+    var mod = presetModified(scope);
     var opts = allPresets().map(function (p) {
-      return '<option value="' + esc(p.id) + '"' + (p.id === activePresetId ? ' selected' : '') + '>' + (isCustom(p.id) ? '★ ' : '') + esc(p.name) + '</option>';
+      return '<option value="' + esc(p.id) + '"' + (p.id === sc.id ? ' selected' : '') + '>' + (isCustom(p.id) ? '★ ' : '') + esc(p.name) + '</option>';
     }).join("");
-    var pages = nSelected ? Math.ceil(nSelected / g.perPage) : 0;
+    var pages = nCards ? Math.ceil(nCards / g.perPage) : 0;
     var summary = st.cardW + ' × ' + st.cardH + ' mm cards · ' + g.perPage + ' per A4 page (' + g.cols + ' × ' + g.rows + ')' +
-      (pages ? ' · ' + pages + (pages === 1 ? ' page' : ' pages') + ' for ' + nSelected : '') +
+      (pages ? ' · ' + pages + (pages === 1 ? ' page' : ' pages') + ' for ' + nCards : '') +
       (mod ? ' <span class="is-mod">· unsaved changes</span>' : '');
     var numField = function (f, label, unit) {
       return '<label class="preset-field">' + label + ' (' + unit + ')<input type="number" inputmode="decimal" step="1" data-pfield="' + f + '" value="' + st[f] + '"></label>';
@@ -2355,42 +2378,44 @@
     var toggle = function (f, label) {
       return '<label class="preset-toggle"><input type="checkbox" data-pfield="' + f + '"' + (st[f] ? ' checked' : '') + '>' + label + '</label>';
     };
-    var edit = view.presetEditOpen
+    var edit = sc.edit
       ? '<div class="preset-edit">' +
           '<div class="preset-grid">' +
             numField("cardW", "Card width", "mm") + numField("cardH", "Card height", "mm") +
-            numField("qr", "QR size", "mm") + numField("nameSize", "Name size", "pt") +
+            numField("qr", "QR size", "mm") + numField("nameSize", isWalkin ? "Name box size" : "Name size", "pt") +
             numField("topPad", "Top space", "mm") + numField("gap", "Gap between", "mm") +
           '</div>' +
           '<div class="preset-toggles">' +
-            toggle("showEvent", "Event title") + toggle("showTeam", "Team name") +
-            toggle("showDietary", "Dietary pill") + toggle("showId", "ID under QR") +
-            toggle("cutLines", "Cut lines") +
+            (isWalkin
+              ? toggle("showEvent", "Event title") + toggle("cutLines", "Cut lines")
+              : toggle("showEvent", "Event title") + toggle("showTeam", "Team name") +
+                toggle("showDietary", "Dietary pill") + toggle("showId", "ID under QR") +
+                toggle("cutLines", "Cut lines")) +
           '</div>' +
           '<div class="preset-actions">' +
-            '<input class="text-input" id="presetName" type="text" placeholder="Name this layout" maxlength="40">' +
+            '<input class="text-input" id="presetName-' + scope + '" type="text" placeholder="Name this layout" maxlength="40">' +
             '<button class="btn btn-sm" data-action="presetSaveNew" type="button">Save as new</button>' +
           '</div>' +
           '<div class="preset-actions">' +
-            (isCustom(activePresetId) ? '<button class="btn btn-sm" data-action="presetSaveOver" type="button"' + (mod ? '' : ' disabled') + '>Update &ldquo;' + esc(active.name) + '&rdquo;</button>' +
+            (isCustom(sc.id) ? '<button class="btn btn-sm" data-action="presetSaveOver" type="button"' + (mod ? '' : ' disabled') + '>Update &ldquo;' + esc(active.name) + '&rdquo;</button>' +
               '<button class="btn btn-sm btn-danger" data-action="presetDelete" type="button">Delete</button>' : '') +
             (mod ? '<button class="btn btn-sm btn-ghost" data-action="presetReset" type="button">Undo changes</button>' : '') +
           '</div>' +
         '</div>'
       : '';
-    return '<div class="preset-card">' +
-        '<span class="preset-label">Print layout</span>' +
-        '<select class="text-input preset-select" id="presetSelect" aria-label="Print layout preset">' + opts + '</select>' +
+    return '<div class="preset-card" data-pscope="' + scope + '">' +
+        '<span class="preset-label">' + (isWalkin ? 'Blank card layout' : 'Print layout') + '</span>' +
+        '<select class="text-input preset-select" id="presetSelect-' + scope + '" data-preset-select="1" aria-label="' + (isWalkin ? 'Blank card layout' : 'Print layout preset') + '">' + opts + '</select>' +
         '<div class="preset-summary">' + summary + '</div>' +
-        '<button class="back-link" data-action="presetToggleEdit" type="button">' + (view.presetEditOpen ? 'Hide options ▴' : 'Customise ▾') + '</button>' +
+        '<button class="back-link" data-action="presetToggleEdit" type="button">' + (sc.edit ? 'Hide options ▴' : 'Customise ▾') + '</button>' +
         edit +
       '</div>';
   }
 
-  function renderPrintCards(ids) {
+  function renderPrintCards(ids, st) {
     var container = document.getElementById("printSheet");
     container.innerHTML = "";
-    var st = printSettings, g = gridFor(st);
+    var g = gridFor(st);
     container.classList.toggle("no-cut", !st.cutLines);
     container.style.setProperty("--cw", st.cardW + "mm");
     container.style.setProperty("--ch", st.cardH + "mm");
@@ -2467,7 +2492,7 @@
   function generateAndPrint() {
     var ids = Array.from(view.selected);
     if (!ids.length) return;
-    renderPrintCards(ids);
+    renderPrintCards(ids, PSCOPE.lanyard.st);
     if (BACKEND_URL) {
       setConnStatus("Marking printed…", false);
       apiPost({ action: "markPrinted", ids: ids }).then(function (res) {
@@ -2685,6 +2710,7 @@
       } else if (view.otherPage === "walkins" && view.walkinsTab === "print") {
         body = walkinsTabsHtml() +
           (view.walkinToast ? '<div class="toast">' + esc(view.walkinToast) + '</div>' : '') +
+          presetPanelHtml("walkin", view.walkinCount || gridFor(PSCOPE.walkin.st).perPage) +
           walkinPrintHtml();
       } else if (view.otherPage === "walkins") {
         var walkins = state.registrants.filter(function (r) { return r.walkin; });
@@ -2806,7 +2832,7 @@
       el.innerHTML =
         '<h2 class="screen-title">Print lanyards</h2>' +
         (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
-        presetPanelHtml(view.selected.size) +
+        presetPanelHtml("lanyard", view.selected.size) +
         '<div class="print-toolbar">' +
           '<input class="text-input" id="printSearch" type="text" placeholder="Search by name or ward" value="' + esc(view.printSearch) + '">' +
           '<div class="print-summary">' +
@@ -3350,7 +3376,7 @@
     m.id = "confirmModal";
     m.className = "modal-backdrop";
     if (c.kind === "deletePreset") {
-      var pr = findPreset(activePresetId);
+      var pr = findPreset(scopeOf(c.scope).id);
       m.innerHTML =
         '<div class="modal" role="dialog" aria-modal="true" aria-label="Delete layout">' +
           '<h3 class="modal-title">Delete this layout?</h3>' +
@@ -3426,11 +3452,11 @@
       else if (action === "askTask") askTask(t.getAttribute("data-id"), t.getAttribute("data-task"));
       else if (action === "confirmYes") answerPickup(true);
       else if (action === "confirmNo") answerPickup(false);
-      else if (action === "presetToggleEdit") { view.presetEditOpen = !view.presetEditOpen; render(); }
-      else if (action === "presetSaveNew") savePresetNew();
-      else if (action === "presetSaveOver") savePresetOver();
-      else if (action === "presetReset") selectPreset(activePresetId);
-      else if (action === "presetDelete") { view.confirm = { kind: "deletePreset" }; render(); }
+      else if (action === "presetToggleEdit") { var pse = scopeOf(pscopeOf(t)); pse.edit = !pse.edit; render(); }
+      else if (action === "presetSaveNew") savePresetNew(pscopeOf(t));
+      else if (action === "presetSaveOver") savePresetOver(pscopeOf(t));
+      else if (action === "presetReset") selectPreset(pscopeOf(t), scopeOf(pscopeOf(t)).id);
+      else if (action === "presetDelete") { view.confirm = { kind: "deletePreset", scope: pscopeOf(t) }; render(); }
       else if (action === "otherPage") setOtherPage(t.getAttribute("data-page"));
       else if (action === "otherBack") otherBack();
       else if (action === "pinBack") pinBack();
@@ -3462,9 +3488,9 @@
 
   document.addEventListener("change", function (e) {
     var tgt = e.target;
-    if (tgt && tgt.id === "presetSelect") { selectPreset(tgt.value); return; }
+    if (tgt && tgt.getAttribute && tgt.getAttribute("data-preset-select")) { selectPreset(pscopeOf(tgt), tgt.value); return; }
     if (tgt && tgt.getAttribute && tgt.getAttribute("data-pfield")) {
-      setPresetField(tgt.getAttribute("data-pfield"), tgt.type === "checkbox" ? tgt.checked : tgt.value);
+      setPresetField(pscopeOf(tgt), tgt.getAttribute("data-pfield"), tgt.type === "checkbox" ? tgt.checked : tgt.value);
       return;
     }
     if (e.target && e.target.getAttribute && e.target.getAttribute("data-action") === "toggleSelect") {
