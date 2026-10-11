@@ -1023,6 +1023,20 @@
     input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea { font-size: 16px !important; }
   }
 
+  /* ---------- Full-size photo viewer ---------- */
+  .avatar-btn { padding: 0; border: none; background: none; border-radius: 50%; cursor: zoom-in; flex: none; }
+  .avatar-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .photo-viewer {
+    position: absolute; inset: 0; z-index: 12; background: rgba(10, 12, 14, 0.96);
+    display: flex; align-items: center; justify-content: center; padding: 20px; cursor: zoom-out;
+  }
+  .photo-viewer-inner { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; max-height: 100%; }
+  .photo-viewer-img { display: block; max-width: 100%; max-height: calc(80vh - 120px); max-height: min(520px, calc(80vh - 120px)); border-radius: 12px; object-fit: contain; background: #222; }
+  .photo-viewer-name { color: #fff; font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 600; text-align: center; margin-top: 6px; }
+  .photo-viewer-meta { color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; }
+  .photo-viewer-hint { color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 4px; }
+  .photo-viewer-missing { color: #fff; padding: 40px 20px; border: 1px dashed rgba(255,255,255,0.4); border-radius: 12px; }
+
   /* ---------- Staff access list ---------- */
   .staff-card { display: flex; flex-direction: column; gap: 10px; }
   .staff-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
@@ -1560,6 +1574,7 @@
       walkin: null,            // draft while the walk-in sign-up screen is open
       cameraMode: null,        // null = lanyard scanning | "setup" = scanning a setup QR (Apps Script URL)
       problemModal: null,      // draft while the "Submit problem" pop-up is open
+      photoView: null,         // registrant id whose photo is open full size
       nameModal: null,         // "What's your name?" pop-up (first connect, or Change in Settings)
       shareStep: 0,           // Settings "Share QR code": 0 closed | 1 app website | 2 Sheet setup link
       walkinStart: null,       // blank-card print form (null = suggest the next unused number)
@@ -3195,7 +3210,9 @@
         '<div class="card">' +
           '<div class="id-row">' +
             '<div class="id-row-main">' +
-              avatarHtml(r, true) +
+              (r.photo
+                ? '<button class="avatar-btn" data-action="viewPhoto" data-id="' + esc(r.id) + '" type="button" aria-label="Show ' + esc(r.name) + '\u2019s photo larger">' + avatarHtml(r, true) + '</button>'
+                : avatarHtml(r, true)) +
               '<div style="min-width:0">' +
                 '<div class="id-name">' + esc(r.name) + '</div>' +
                 '<div class="id-meta">' + esc(r.ward) + ' &middot; ' + esc(r.stake) + '</div>' +
@@ -3480,6 +3497,35 @@
     var shell = document.querySelector(".app-shell");
     var old = document.getElementById("confirmModal");
     if (old) old.remove();
+    if (view.photoView && shell) {
+      var pr0 = byId(state.registrants, view.photoView);
+      if (pr0 && pr0.photo) {
+        var pv = document.createElement("div");
+        pv.id = "confirmModal";
+        pv.className = "photo-viewer";
+        pv.setAttribute("data-action", "closePhoto");
+        pv.innerHTML =
+          '<div class="photo-viewer-inner" role="dialog" aria-modal="true" aria-label="' + esc(pr0.name) + '\u2019s photo">' +
+            '<img class="photo-viewer-img" src="' + esc(pr0.photo) + '" alt="Photo of ' + esc(pr0.name) + '" referrerpolicy="no-referrer">' +
+            '<div class="photo-viewer-name">' + esc(pr0.name) + '</div>' +
+            '<div class="photo-viewer-meta mono">' + esc(pr0.id) + (pr0.ward && pr0.ward !== "Walk-in" ? ' &middot; ' + esc(pr0.ward) : '') + '</div>' +
+            '<div class="photo-viewer-hint">Tap anywhere to close</div>' +
+          '</div>';
+        shell.appendChild(pv);
+        var pImg = pv.querySelector(".photo-viewer-img");
+        // a private Drive photo that won't load directly is fetched once through the Sheet script
+        pImg.addEventListener("error", function () {
+          if (pImg.getAttribute("data-retried") || !BACKEND_URL) { pImg.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" })); return; }
+          pImg.setAttribute("data-retried", "1");
+          fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(pr0.id))
+            .then(function (x) { return x.json(); })
+            .then(function (d) { if (d && d.ok && d.dataUri) { pr0.photo = d.dataUri; pImg.src = d.dataUri; } else pImg.dispatchEvent(new Event("error")); })
+            .catch(function () { pImg.dispatchEvent(new Event("error")); });
+        });
+        return;
+      }
+      view.photoView = null;
+    }
     var nmod = view.nameModal;
     if (nmod && shell) {
       var nmEl = document.createElement("div");
@@ -3652,6 +3698,8 @@
       else if (action === "selectAllUnprinted") selectAllUnprinted();
       else if (action === "clearSelection") clearSelection();
       else if (action === "generatePrint") generateAndPrint();
+      else if (action === "viewPhoto") { view.photoView = t.getAttribute("data-id"); render(); }
+      else if (action === "closePhoto") { view.photoView = null; render(); }
       else if (action === "askResetPrinted") { view.confirm = { kind: "resetPrinted" }; render(); }
       else if (action === "printBlankCards") printBlankCards();
       else if (action === "walkinsTab") { view.walkinsTab = t.getAttribute("data-tab"); view.walkinToast = ""; render(); }
@@ -3688,6 +3736,7 @@
   });
 
   document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && view.photoView) { view.photoView = null; render(); return; }
     if (e.target && e.target.id === "settingsUrlInput" && e.key === "Enter") connectBackend();
   });
 
