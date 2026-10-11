@@ -239,6 +239,23 @@ function doPost(e) {
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowT, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
+    // Print tab "Reset printing": everyone back to not printed, except walk-ins (their blank card is their lanyard).
+    if (action === 'resetPrinted') {
+      var qpCol = col_(map, 'QR Printed'), qaCol = col_(map, 'QR Printed At'), wkCol = map['Walk-in'];
+      if (!reg.rows.length) return jsonOut_({ ok: true, reset: 0 });
+      var resetCount = 0;
+      var printedVals = [], printedAtVals = [];
+      reg.rows.forEach(function (row) {
+        var isWalkin = wkCol && String(row[wkCol - 1]).trim().toLowerCase() === 'yes';
+        if (isWalkin) { printedVals.push([row[qpCol - 1]]); printedAtVals.push([row[qaCol - 1]]); return; }
+        if (String(row[qpCol - 1]).trim().toLowerCase() === 'yes') resetCount++;
+        printedVals.push(['No']); printedAtVals.push(['']);
+      });
+      sh.getRange(reg.firstDataRow, qpCol, printedVals.length, 1).setValues(printedVals);
+      sh.getRange(reg.firstDataRow, qaCol, printedAtVals.length, 1).setValues(printedAtVals);
+      return jsonOut_({ ok: true, reset: resetCount });
+    }
+
     if (action === 'registerWalkin') return jsonOut_(registerWalkin_(body, reg));       // Walkin.gs
     if (action === 'reportProblem') return jsonOut_(reportProblem_(body));              // Problems.gs
     if (action === 'setProblemStatus') return jsonOut_(setProblemStatus_(body));        // Problems.gs

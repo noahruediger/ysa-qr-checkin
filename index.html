@@ -2169,6 +2169,7 @@
     view.confirm = null;
     if (!yes || !c) { render(); return; }
     if (c.kind === "deletePreset") { deletePreset(c.scope); return; }
+    if (c.kind === "resetPrinted") { resetPrinted(); return; }
     if (c.kind === "task") { answerTask(c); return; }
     var r = byId(state.registrants, c.id);
     if (!r) { render(); return; }
@@ -2517,6 +2518,41 @@
     finishPrint(ids);
   }
 
+  // Print tab "Reset printing": everyone back to not printed (walk-ins keep their blank card).
+  function resetPrinted() {
+    var targets = state.registrants.filter(function (r) { return !r.walkin; });
+    var wasPrinted = targets.filter(function (r) { return r.qrPrinted; }).length;
+    var applyLocal = function () {
+      targets.forEach(function (r) { r.qrPrinted = false; r.qrPrintedAt = null; });
+      view.selected = new Set();
+    };
+    if (!BACKEND_URL) {
+      applyLocal();
+      view.printToast = "Printing reset \u2014 " + wasPrinted + " lanyard" + (wasPrinted === 1 ? "" : "s") + " marked not printed.";
+      render();
+      return;
+    }
+    setConnStatus("Resetting printing\u2026", false);
+    view.printToast = "Resetting\u2026";
+    render();
+    apiPost({ action: "resetPrinted" }).then(function (res) {
+      if (res && res.ok) {
+        applyLocal();
+        var n = typeof res.reset === "number" ? res.reset : wasPrinted;
+        view.printToast = "Printing reset \u2014 " + n + " lanyard" + (n === 1 ? "" : "s") + " marked not printed.";
+        setConnStatus("Connected \u2014 live off the test Sheet", true);
+      } else {
+        view.printToast = "Couldn\u2019t reset \u2014 the Sheet script needs the reset update (" + (res && res.error) + "). Nothing was changed.";
+        setConnStatus("Reset failed \u2014 " + (res && res.error), false);
+      }
+      render();
+    }).catch(function (err) {
+      view.printToast = "Couldn\u2019t reach the Sheet (" + err + "). Nothing was changed.";
+      setConnStatus("Reset failed \u2014 " + err, false);
+      render();
+    });
+  }
+
   window.addEventListener("afterprint", function () {
     document.body.classList.remove("printing");
     render();
@@ -2830,7 +2866,10 @@
         : '<div class="empty-note">No registrants match &ldquo;' + esc(view.printSearch) + '&rdquo;.</div>';
 
       el.innerHTML =
-        '<h2 class="screen-title">Print lanyards</h2>' +
+        '<div class="screen-head-row">' +
+          '<h2 class="screen-title">Print lanyards</h2>' +
+          '<button class="btn btn-sm btn-danger" data-action="askResetPrinted" type="button">Reset printing</button>' +
+        '</div>' +
         (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
         presetPanelHtml("lanyard", view.selected.size) +
         '<div class="print-toolbar">' +
@@ -3389,6 +3428,21 @@
       shell.appendChild(m);
       return;
     }
+    if (c.kind === "resetPrinted") {
+      var printedNow = state.registrants.filter(function (x) { return x.qrPrinted && !x.walkin; }).length;
+      m.innerHTML =
+        '<div class="modal" role="dialog" aria-modal="true" aria-label="Reset printing">' +
+          '<h3 class="modal-title">Are you sure?</h3>' +
+          '<div class="modal-sub" style="font-size:14px;color:var(--ink)">This marks all ' + printedNow + ' printed lanyard' + (printedNow === 1 ? '' : 's') + ' as <strong>not printed</strong>' + (BACKEND_URL ? ', in the Sheet too' : '') + '. It can\u2019t be undone.</div>' +
+          '<div class="modal-sub">Walk-ins keep their blank cards and aren\u2019t changed.</div>' +
+          '<div class="modal-actions">' +
+            '<button class="btn" data-action="confirmNo" type="button">No</button>' +
+            '<button class="btn btn-danger" data-action="confirmYes" type="button">Yes, reset</button>' +
+          '</div>' +
+        '</div>';
+      shell.appendChild(m);
+      return;
+    }
     var r = byId(state.registrants, c.id);
     if (!r) return;
     if (c.kind === "task") {
@@ -3464,6 +3518,7 @@
       else if (action === "selectAllUnprinted") selectAllUnprinted();
       else if (action === "clearSelection") clearSelection();
       else if (action === "generatePrint") generateAndPrint();
+      else if (action === "askResetPrinted") { view.confirm = { kind: "resetPrinted" }; render(); }
       else if (action === "printBlankCards") printBlankCards();
       else if (action === "walkinsTab") { view.walkinsTab = t.getAttribute("data-tab"); view.walkinToast = ""; render(); }
       else if (action === "openSetupCamera") openCamera("setup");
