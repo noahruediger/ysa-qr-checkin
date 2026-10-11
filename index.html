@@ -959,6 +959,25 @@
       letter-spacing: 0.12em; text-transform: uppercase; color: #777;
     }
     .print-card.is-blank canvas { margin-top: 6mm; }
+
+    /* fold-over photo layout */
+    .fold-page { position: relative; width: 210mm; height: 296mm; overflow: hidden; break-after: page; page-break-after: always; background: #fff; }
+    .fold-page:last-child { break-after: auto; page-break-after: auto; }
+    .fold-strip { position: absolute; left: 0; display: flex; width: calc(var(--cw, 82mm) * 2); height: var(--ch, 130mm); }
+    .fold-panel { width: var(--cw, 82mm); height: var(--ch, 130mm); box-sizing: border-box; padding: var(--top, 17mm) 7mm 7mm;
+      display: flex; flex-direction: column; align-items: center; text-align: center; color: #111; background: #fff; }
+    .fold-front canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
+    .fold-photo { width: calc(var(--cw, 82mm) - 18mm); height: calc((var(--cw, 82mm) - 18mm) * 1.25); max-height: calc(var(--ch, 130mm) - var(--top, 17mm) - 20mm);
+      object-fit: cover; border-radius: 2mm; display: block; }
+    .fold-photo-empty { display: flex; align-items: center; justify-content: center; border: 0.4mm dashed #999;
+      font: 700 10pt "IBM Plex Sans", Arial, sans-serif; letter-spacing: 0.2em; color: #999; box-sizing: border-box; }
+    .fold-photo-name { font: 700 10pt "IBM Plex Sans", Arial, sans-serif; margin-top: 3mm; }
+    .fold-guide { position: absolute; }
+    .fold-guide-v { border-left: 0.3mm dashed #999; }
+    .fold-guide-h { border-top: 0.3mm dashed #999; }
+    .fold-guide-fold { border-left: 0.3mm dotted #bbb; }
+    .fold-label { position: absolute; font: 6pt Arial, sans-serif; color: #999; white-space: nowrap; }
+    .print-sheet.is-fold .print-card { outline: none; }
     .print-card.is-blank .print-card-id { font-size: 11pt; font-weight: 600; color: #111; }
   }
 
@@ -2250,9 +2269,10 @@
     { id: "lanyard4team", name: "Lanyard 82×130 · with team", cardW: 82, cardH: 130, gap: 10, qr: 46, nameSize: 22, topPad: 17, cutLines: true, showEvent: true, showTeam: true, showDietary: true, showId: true },
     { id: "big1", name: "Big card · 1 per page (A5)", cardW: 148, cardH: 210, gap: 10, qr: 90, nameSize: 40, topPad: 24, cutLines: true, showEvent: true, showTeam: true, showDietary: true, showId: true },
     { id: "proof", name: "Draft proof · small, saves paper", cardW: 56, cardH: 80, gap: 6, qr: 34, nameSize: 13, topPad: 8, cutLines: true, showEvent: false, showTeam: false, showDietary: true, showId: true },
+    { id: "fold2", name: "Fold-over with photo · 2 per page", fold: true, cardW: 82, cardH: 130, gap: 0, qr: 50, nameSize: 22, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true },
     { id: "walkin4", name: "Walk-in card 82×130 · 4 per page", cardW: 82, cardH: 130, gap: 10, qr: 50, nameSize: 26, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true }
   ];
-  var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showId"];
+  var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showId", "fold"];
   var customPresets = [];
   try { customPresets = JSON.parse(localStorage.getItem("qrCheckinPrintPresets") || "[]") || []; } catch (e) { customPresets = []; }
 
@@ -2277,8 +2297,10 @@
   }
   function num(v, lo, hi, dflt) { v = parseFloat(v); if (!isFinite(v)) v = dflt; return Math.min(hi, Math.max(lo, v)); }
   function normalizeSettings(o) {
+    // fold-over cards: each person is two panels side by side (front | photo), so a panel is at most half the page wide
     return {
-      cardW: num(o.cardW, 30, PAGE.w - 2 * PAGE.margin, 82),
+      fold: !!o.fold,
+      cardW: num(o.cardW, 30, o.fold ? PAGE.w / 2 : PAGE.w - 2 * PAGE.margin, 82),
       cardH: num(o.cardH, 30, PAGE.h - 2 * PAGE.margin, 130),
       gap: num(o.gap, 0, 30, 10),
       qr: num(o.qr, 15, 150, 50),
@@ -2297,6 +2319,7 @@
   });
 
   function gridFor(st) {
+    if (st.fold) return { cols: 1, rows: Math.max(1, Math.floor((PAGE.h - 1) / st.cardH)), perPage: Math.max(1, Math.floor((PAGE.h - 1) / st.cardH)) };
     var cols = Math.max(1, Math.floor((PAGE.w - 2 * PAGE.margin + st.gap) / (st.cardW + st.gap)));
     var rows = Math.max(1, Math.floor((PAGE.h - 2 * PAGE.margin + st.gap) / (st.cardH + st.gap)));
     return { cols: cols, rows: rows, perPage: cols * rows };
@@ -2366,11 +2389,13 @@
     var st = sc.st, g = gridFor(st);
     var active = findPreset(sc.id);
     var mod = presetModified(scope);
-    var opts = allPresets().map(function (p) {
+    var opts = allPresets().filter(function (p) { return !(isWalkin && p.fold); }).map(function (p) {
       return '<option value="' + esc(p.id) + '"' + (p.id === sc.id ? ' selected' : '') + '>' + (isCustom(p.id) ? '★ ' : '') + esc(p.name) + '</option>';
     }).join("");
     var pages = nCards ? Math.ceil(nCards / g.perPage) : 0;
-    var summary = st.cardW + ' × ' + st.cardH + ' mm cards · ' + g.perPage + ' per A4 page (' + g.cols + ' × ' + g.rows + ')' +
+    var summary = (st.fold
+        ? 'Fold-over: ' + st.cardW + ' × ' + st.cardH + ' mm folded, photo on the back · ' + g.perPage + ' people per A4 page'
+        : st.cardW + ' × ' + st.cardH + ' mm cards · ' + g.perPage + ' per A4 page (' + g.cols + ' × ' + g.rows + ')') +
       (pages ? ' · ' + pages + (pages === 1 ? ' page' : ' pages') + ' for ' + nCards : '') +
       (mod ? ' <span class="is-mod">· unsaved changes</span>' : '');
     var numField = function (f, label, unit) {
@@ -2384,14 +2409,14 @@
           '<div class="preset-grid">' +
             numField("cardW", "Card width", "mm") + numField("cardH", "Card height", "mm") +
             numField("qr", "QR size", "mm") + numField("nameSize", isWalkin ? "Name box size" : "Name size", "pt") +
-            numField("topPad", "Top space", "mm") + numField("gap", "Gap between", "mm") +
+            numField("topPad", "Top space", "mm") + (st.fold ? '' : numField("gap", "Gap between", "mm")) +
           '</div>' +
           '<div class="preset-toggles">' +
             (isWalkin
               ? toggle("showEvent", "Event title") + toggle("cutLines", "Cut lines")
               : toggle("showEvent", "Event title") + toggle("showTeam", "Team name") +
                 toggle("showDietary", "Dietary pill") + toggle("showId", "ID under QR") +
-                toggle("cutLines", "Cut lines")) +
+                toggle("cutLines", st.fold ? "Cut & fold lines" : "Cut lines")) +
           '</div>' +
           '<div class="preset-actions">' +
             '<input class="text-input" id="presetName-' + scope + '" type="text" placeholder="Name this layout" maxlength="40">' +
@@ -2413,9 +2438,113 @@
       '</div>';
   }
 
+  // Fold-over photo layout: each person is a strip of two panels — front (name + QR) | back (photo).
+  // Strips are stacked from the very top-left corner of the A4 sheet, so you cut down the right, along the
+  // bottom and between people, then fold each strip in half.
+  function renderFoldCards(ids, st, container) {
+    var g = gridFor(st);
+    var page = null, onPage = 0;
+    ids.forEach(function (id) {
+      var r = typeof id === "string" ? byId(state.registrants, id) : id;
+      if (!r || r.blank) return;
+      if (!page || onPage === g.perPage) {
+        page = document.createElement("div");
+        page.className = "fold-page";
+        container.appendChild(page);
+        onPage = 0;
+      }
+      var strip = document.createElement("div");
+      strip.className = "fold-strip";
+      strip.style.top = (onPage * st.cardH) + "mm";
+
+      var front = document.createElement("div");
+      front.className = "fold-panel fold-front";
+      if (st.showEvent) { var ev = document.createElement("div"); ev.className = "print-card-event"; ev.textContent = "Brisbane YSA Convention 2026"; front.appendChild(ev); }
+      var nm = document.createElement("div"); nm.className = "print-card-name"; nm.textContent = r.name; front.appendChild(nm);
+      if (st.showTeam && r.team) { var tm = document.createElement("div"); tm.className = "print-card-team"; tm.textContent = r.team; front.appendChild(tm); }
+      front.appendChild(makeQrCanvas(r.id, 400));
+      if (st.showDietary && r.dietary) { var dt = document.createElement("div"); dt.className = "print-card-dietary"; dt.innerHTML = "&#127869; DIETARY"; front.appendChild(dt); }
+      if (st.showId) { var idEl = document.createElement("div"); idEl.className = "print-card-id"; idEl.textContent = r.id; front.appendChild(idEl); }
+
+      var back = document.createElement("div");
+      back.className = "fold-panel fold-back";
+      if (r.photo) {
+        var img = document.createElement("img");
+        img.className = "fold-photo";
+        img.alt = "";
+        img.referrerPolicy = "no-referrer";
+        img.setAttribute("data-print-photo-id", r.id);
+        img.src = r.photo;
+        back.appendChild(img);
+      } else {
+        var ph = document.createElement("div"); ph.className = "fold-photo fold-photo-empty"; ph.textContent = "PHOTO"; back.appendChild(ph);
+      }
+      var pn = document.createElement("div"); pn.className = "fold-photo-name"; pn.textContent = r.name; back.appendChild(pn);
+
+      strip.appendChild(front);
+      strip.appendChild(back);
+      page.appendChild(strip);
+      onPage++;
+    });
+    // cut / fold guides on every page, drawn for the number of people actually on it
+    Array.prototype.forEach.call(container.querySelectorAll(".fold-page"), function (pg) {
+      if (!st.cutLines) return;
+      var n = pg.querySelectorAll(".fold-strip").length;
+      var h = n * st.cardH, w = 2 * st.cardW;
+      var add = function (cls, css, text) { var d = document.createElement("div"); d.className = cls; d.style.cssText = css; if (text) d.textContent = text; pg.appendChild(d); };
+      add("fold-guide fold-guide-v", "left:" + w + "mm;top:0;height:" + h + "mm");
+      add("fold-guide fold-guide-fold", "left:" + st.cardW + "mm;top:0;height:" + h + "mm");
+      for (var i = 1; i <= n; i++) add("fold-guide fold-guide-h", "top:" + (i * st.cardH) + "mm;left:0;width:" + w + "mm");
+      for (var j = 0; j < n; j++) add("fold-label", "left:" + (w + 2) + "mm;top:" + (j * st.cardH + st.cardH / 2) + "mm", "\u2702 cut");
+      add("fold-label", "left:" + (st.cardW + 1) + "mm;top:" + (h + 1) + "mm", "fold");
+    });
+  }
+
+  // Wait for photos on the print sheet before opening the print dialog. A photo that won't load
+  // (e.g. a private Drive file) is fetched once through the Sheet script; anything still missing
+  // after a few seconds prints as an empty PHOTO box.
+  function whenPrintPhotosReady(done) {
+    var imgs = Array.prototype.slice.call(document.querySelectorAll("#printSheet img[data-print-photo-id]"));
+    if (!imgs.length) { done(); return; }
+    var finished = false, left = imgs.length;
+    var finish = function () { if (!finished) { finished = true; done(); } };
+    var settle = function () { left--; if (left <= 0) finish(); };
+    var giveUp = function (img) {
+      var box = document.createElement("div"); box.className = "fold-photo fold-photo-empty"; box.textContent = "PHOTO";
+      if (img.parentNode) img.parentNode.replaceChild(box, img);
+    };
+    imgs.forEach(function (img) {
+      var tried = false;
+      var onFail = function () {
+        var id = img.getAttribute("data-print-photo-id");
+        if (!tried && BACKEND_URL && id) {
+          tried = true;
+          fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(id))
+            .then(function (x) { return x.json(); })
+            .then(function (d) {
+              if (d && d.ok && d.dataUri) { var r = byId(state.registrants, id); if (r) r.photo = d.dataUri; img.src = d.dataUri; }
+              else { giveUp(img); settle(); }
+            }).catch(function () { giveUp(img); settle(); });
+          return;
+        }
+        giveUp(img); settle();
+      };
+      if (img.complete && img.naturalWidth) { settle(); return; }
+      img.addEventListener("load", settle, { once: true });
+      img.addEventListener("error", onFail);
+    });
+    setTimeout(function () {
+      if (finished) return;
+      imgs.forEach(function (img) { if (!(img.complete && img.naturalWidth)) giveUp(img); });
+      finish();
+    }, 8000);
+  }
+
   function renderPrintCards(ids, st) {
     var container = document.getElementById("printSheet");
     container.innerHTML = "";
+    container.classList.toggle("is-fold", !!st.fold);
+    if (st.fold) { renderFoldCards(ids, st, container); return; }
     var g = gridFor(st);
     container.classList.toggle("no-cut", !st.cutLines);
     container.style.setProperty("--cw", st.cardW + "mm");
@@ -2487,6 +2616,11 @@
     view.printToast = ids.length + (ids.length === 1 ? " lanyard marked as printed." : " lanyards marked as printed.");
     view.selected = new Set();
     document.body.classList.add("printing");
+    if (PSCOPE.lanyard.st.fold) {
+      var doneMsg = view.printToast;
+      whenPrintPhotosReady(function () { view.printToast = doneMsg; window.print(); });
+      return;
+    }
     window.print();
   }
 

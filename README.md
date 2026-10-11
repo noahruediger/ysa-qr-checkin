@@ -77,7 +77,9 @@ Anyone with the /exec URL can read the Sheet's data through it, including names,
 
 ## Printing lanyards
 
-The **Print** tab prints QR lanyard cards (82 × 130 mm, 4 per A4 sheet) with name, team and a dietary badge. Printed cards are marked in the Sheet so you can print only the new ones later.
+The **Print** tab prints QR lanyard cards (82 × 130 mm, 4 per A4 sheet) with name, team and a dietary badge. Printed cards are marked in the Sheet so you can print only the new ones later, and **Reset printing** marks everyone (except walk-ins) as not printed again.
+
+The **Fold-over with photo · 2 per page** layout prints each person as a 164 × 130 mm strip: name and QR on the left, their photo on the right. Strips start at the top-left corner of the A4 sheet — cut down the right, along the bottom and between the two people, then fold each in half to get an 82 × 130 mm card with the photo on the back. People without a photo get an empty PHOTO box.
 
 ## Walk-ins
 
