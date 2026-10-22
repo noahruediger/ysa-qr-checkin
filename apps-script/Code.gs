@@ -135,6 +135,7 @@ function doGet(e) {
     }
     if (action === 'problems') return jsonOut_(listProblems_());   // Problems.gs
     if (action === 'staff') return jsonOut_(listStaff_());         // Staff.gs
+    if (action === 'heartbeat') return jsonOut_(staffHeartbeat_(e.parameter));   // Staff.gs
     return jsonOut_({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });

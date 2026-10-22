@@ -1,6 +1,6 @@
 # YSA QR Check-In
 
-A phone-first check-in app for the Brisbane YSA Convention. Staff scan the QR code on a lanyard to check people in, book activities, flag lost people, tick off airport pickups, and print lanyards. Everything reads and writes live to a Google Sheet.
+A phone-first check-in app for the Brisbane YSA Convention. Staff scan the QR code on a lanyard to check people in, flag lost people, tick off airport pickups, and print lanyards. Everything reads and writes live to a Google Sheet.
 
 - `index.html` — the app (one file, runs in any phone browser)
 - `apps-script/Code.gs` — the backend that connects the app to the Google Sheet
@@ -58,7 +58,7 @@ After editing the script later, use **Deploy → Manage deployments → Edit →
 ### 4. Connect the app
 
 1. Open the app on the phone: https://noahruediger.github.io/ysa-qr-checkin/
-2. Go to **Settings**, paste the /exec URL, and tap **Connect**. The green dot means it's live.
+2. Go to **Settings**, paste the /exec URL, and tap **Connect**. The box in the top right says **Online** once it's live.
 3. Type your name and pick your role (Admin, Security or Other) when asked.
 
 The URL is saved on that phone only. To set up another phone quickly, use **Settings → Share QR code** on a connected phone: step 1 opens the app, step 2 is a setup QR they scan from **Settings → Scan setup QR code** on their phone.
@@ -85,7 +85,17 @@ The **Fold-over with photo · 2 per page** layout prints each person as a 164 ×
 
 For people who sign up on the day. In **Other → Walk-ins → Print blank cards**, print blank walk-in cards (codes `YSA-A0001` onward, with an empty name box). Scanning a card that isn't linked to anyone opens a sign-up screen: type their name, take their photo, and the card is linked to them. Walk-ins are added as new rows on the Registrants tab (`Walk-in` = Yes) and their photos are saved to a Drive folder called "YSA Walk-in Photos". **Other → Walk-ins** lists them all.
 
+## Sync status (top right)
+
+The box in the top right shows how the phone is talking to the Sheet:
+
+- **Offline** — not connected to a Sheet, or the last request couldn't reach it.
+- **Online** — connected, nothing sent yet.
+- **Spinner + number** — that many changes are still on their way to the Sheet. Changes are sent one at a time, so the number counts down as each one lands.
+- **Synced** — every change has reached the Sheet.
+
 ## Problems and staff
 
 - **Settings → Submit problem / View problems** — staff report issues to a `Problems` tab and mark them resolved.
 - **Settings → People with access** — every phone that has connected, with the person's name and role, from a `Staff` tab. This is a record, not a lock: anyone with the /exec URL can still connect.
+- **Dashboard → Staff online** — the same list, with anyone who's had the app open in the last 5 minutes shown as online. Each open app checks in with the Sheet every couple of minutes (more often while the Dashboard is open), which updates `Last Seen` and `Last Active` on the Staff tab.

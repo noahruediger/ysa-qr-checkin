@@ -9,12 +9,16 @@
  * Note: this is a record of who has set the app up, not a lock. Anyone with the /exec URL can
  * still use it, so keep that link private.
  *
+ * Who's online: while the app is open, each phone sends a "heartbeat" every couple of minutes
+ * (doGet action=heartbeat). That updates its Last Seen / Last Active time, and the app's Dashboard
+ * shows anyone active in the last 5 minutes as online.
+ *
  * Setup: add this file next to Code.gs in the Sheet's Apps Script project (+ next to Files > Script).
  * Code.gs already routes the actions to it. Then Deploy > Manage deployments > Edit > New version.
  */
 
 var SHEET_STAFF = 'Staff';
-var STAFF_HEADERS = ['Name', 'Role', 'Device', 'First Connected', 'Last Seen', 'Device ID'];
+var STAFF_HEADERS = ['Name', 'Role', 'Device', 'First Connected', 'Last Seen', 'Device ID', 'Last Active'];
 
 function staffSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -37,10 +41,17 @@ function listStaff_() {
   var map = headerMap_(sh);
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: true, staff: [] };
-  var values = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getDisplayValues();
-  var staff = values.map(function (row) {
+  var range = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn());
+  var values = range.getDisplayValues();
+  var raw = range.getValues();
+  var now = Date.now();
+  var staff = values.map(function (row, i) {
     function g(h) { return map[h] ? row[map[h] - 1] : ''; }
-    return { name: g('Name'), role: g('Role'), device: g('Device'), firstConnected: g('First Connected'), lastSeen: g('Last Seen'), deviceId: g('Device ID') };
+    // Last Active is a real date/time, so the app can tell how long ago it was.
+    // agoSec is worked out here, on the Sheet's clock, so a phone with the wrong time doesn't matter.
+    var active = map['Last Active'] ? raw[i][map['Last Active'] - 1] : '';
+    var agoSec = active instanceof Date ? Math.max(0, Math.round((now - active.getTime()) / 1000)) : null;
+    return { name: g('Name'), role: g('Role'), device: g('Device'), firstConnected: g('First Connected'), lastSeen: g('Last Seen'), deviceId: g('Device ID'), agoSec: agoSec };
   }).filter(function (s) { return s.name || s.deviceId; });
   return { ok: true, staff: staff };
 }
@@ -66,6 +77,7 @@ function registerStaff_(body) {
         if (role) sh.getRange(r, map['Role']).setValue(role);
         if (device) sh.getRange(r, map['Device']).setValue(device);
         sh.getRange(r, map['Last Seen']).setValue(stamp);
+        sh.getRange(r, map['Last Active']).setValue(new Date());
         return listStaff_();
       }
     }
@@ -79,6 +91,27 @@ function registerStaff_(body) {
   set('First Connected', stamp);
   set('Last Seen', stamp);
   set('Device ID', deviceId);
+  set('Last Active', new Date());
   sh.appendRow(row);
+  return listStaff_();
+}
+
+// "I'm still here" from a phone with the app open. Updates its times and sends back the whole list.
+// A phone that hasn't typed its name yet (not on the tab) just gets the list.
+function staffHeartbeat_(params) {
+  var deviceId = String((params && params.deviceId) || '').trim();
+  var sh = staffSheet_();
+  var map = headerMap_(sh);
+  var lastRow = sh.getLastRow();
+  if (deviceId && lastRow >= 2) {
+    var ids = sh.getRange(2, map['Device ID'], lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]).trim() === deviceId) {
+        sh.getRange(i + 2, map['Last Seen']).setValue(nowStamp_());
+        sh.getRange(i + 2, map['Last Active']).setValue(new Date());
+        break;
+      }
+    }
+  }
   return listStaff_();
 }

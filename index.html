@@ -220,27 +220,47 @@
     100% { left: 100%; }
   }
 
-  .conn-dot-wrap {
+  /* ---------- Sync status box (top right) ---------- */
+  .sync-box {
     position: absolute;
     top: 10px;
     right: 12px;
     z-index: 4;
-  }
-  .conn-dot {
-    display: block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--muted);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
     box-shadow: 0 0 0 3px var(--surface);
   }
-  .conn-dot.is-on { background: var(--success); }
+  .sync-box.is-online, .sync-box.is-synced { background: var(--success-tint); border-color: transparent; color: var(--success); }
+  .sync-box.is-offline { background: var(--critical-tint); border-color: transparent; color: var(--critical); }
+  .sync-box.is-sending { background: var(--accent-tint); border-color: transparent; color: var(--accent-ink); }
+  .sync-count { font-size: 13px; font-weight: 600; min-width: 1ch; text-align: right; }
+  .sync-spinner {
+    width: 12px; height: 12px; flex: none;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: syncSpin 0.8s linear infinite;
+  }
+  @keyframes syncSpin { to { transform: rotate(360deg); } }
 
   .phone-content {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 20px 16px 16px;
+    padding: 44px 16px 16px;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -802,7 +822,8 @@
       border-radius: 0;
       box-shadow: none;
     }
-    .phone-content { padding-top: calc(24px + env(safe-area-inset-top, 0px)); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .sync-box { top: calc(10px + env(safe-area-inset-top, 0px)); }
+    .phone-content { padding-top: calc(44px + env(safe-area-inset-top, 0px)); overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
     .phone-tabbar { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   }
 
@@ -1015,6 +1036,18 @@
   .walkin-print-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-soft); }
   .walkin-print-grid .text-input { width: 100%; }
   .walkin-print-range { font-size: 12px; color: var(--ink-soft); }
+  .walkin-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .walkin-stat {
+    display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center;
+    padding: 10px 6px; border-radius: var(--radius-m); background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .walkin-stat.is-printed { background: var(--accent-tint); border-color: transparent; }
+  .walkin-stat.is-printed .walkin-stat-num { color: var(--accent-ink); }
+  .walkin-stat.is-empty { background: var(--warning-tint); border-color: transparent; }
+  .walkin-stat.is-empty .walkin-stat-num { color: var(--warning); }
+  .walkin-stat-num { font-size: 28px; font-weight: 600; line-height: 1.1; color: var(--ink); }
+  .walkin-stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  .walkin-stats-range { grid-column: 1 / -1; font-size: 11.5px; color: var(--ink-soft); text-align: center; }
   .pill-walkin { background: var(--accent-tint); color: var(--accent-ink); }
 
   /* iPhone Safari zooms the page in whenever a field with text under 16px is tapped, and doesn't zoom
@@ -1048,6 +1081,17 @@
   .staff-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .staff-name { font-size: 13.5px; font-weight: 500; }
   .staff-meta { font-size: 11px; color: var(--muted); }
+  .staff-total { margin-left: auto; font-size: 11.5px; font-weight: 400; color: var(--muted); }
+  .staff-row.is-away { background: transparent; }
+  .staff-row.is-away .staff-name { color: var(--ink-soft); }
+  .presence-avatar { position: relative; flex: none; display: inline-flex; }
+  .presence-dot {
+    position: absolute; right: -1px; bottom: -1px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--muted); border: 2px solid var(--surface);
+  }
+  .presence-dot.is-on { background: var(--success); }
+  .staff-row.is-away .presence-dot { border-color: var(--surface-2); }
   .staff-role-select { width: 100%; font-size: 16px; font-family: "IBM Plex Sans", system-ui, sans-serif; }
   .problem-modal .text-input { font-family: "IBM Plex Sans", system-ui, sans-serif; }
 
@@ -1077,7 +1121,7 @@
   <div class="app-wrap">
     <div class="app-shell" aria-label="QR Check-In app">
       <div class="loading-bar" id="loadingBar"></div>
-      <div class="conn-dot-wrap"><span class="conn-dot" id="connDot" title="Connection status"></span></div>
+      <div class="sync-box is-offline" id="syncBox" role="status" aria-live="polite"><span id="syncBoxText">Offline</span></div>
       <div class="phone-content" id="screen"></div>
       <nav class="phone-tabbar" aria-label="App navigation">
         <button class="tabbar-btn" id="tabDashboardBtn" data-action="selectTab" data-tab="dashboard" type="button">
@@ -1129,16 +1173,58 @@
   var connectedOk = false;
   var pendingRequests = 0;
 
+  // Settings status line only. The top-right box is driven by whether the Sheet is reachable
+  // and how many changes are still waiting to send (see updateSyncBox).
   function setConnStatus(text, ok) {
     lastStatusText = text;
     connectedOk = !!ok;
-    var dot = document.getElementById("connDot");
-    if (dot) dot.classList.toggle("is-on", connectedOk);
     var statusText = document.getElementById("settingsStatusText");
     if (statusText) {
       statusText.textContent = text;
       statusText.style.color = ok ? "var(--success)" : "";
     }
+  }
+
+  // ---------- top-right sync box ----------
+  // Offline  — no Sheet connected, or the last request couldn't reach it
+  // Online   — connected, nothing sent yet this session
+  // ◌ 5      — 5 changes still waiting to reach the Sheet (sent one at a time)
+  // Synced   — every change has reached the Sheet
+  var sheetReachable = null;    // null = not tried yet, true / false after the first request
+  var pendingWrites = 0;        // changes queued or in flight
+  var syncedOnce = false;       // at least one change has gone through while online
+
+  function markReachable(ok) {
+    var was = sheetReachable;
+    sheetReachable = !!ok;
+    if (!ok) syncedOnce = false;
+    if (was !== sheetReachable) updateSyncBox();
+  }
+
+  function updateSyncBox() {
+    var box = document.getElementById("syncBox");
+    var txt = document.getElementById("syncBoxText");
+    if (!box || !txt) return;
+    var cls, html, label;
+    if (pendingWrites > 0) {
+      cls = "is-sending";
+      html = '<span class="sync-spinner" aria-hidden="true"></span><span class="sync-count">' + pendingWrites + '</span>';
+      label = "Sending " + pendingWrites + " change" + (pendingWrites === 1 ? "" : "s") + " to the Sheet";
+    } else if (!BACKEND_URL || sheetReachable === false) {
+      cls = "is-offline"; html = "Offline";
+      label = BACKEND_URL ? "Offline: can't reach the Sheet" : "Offline: not connected to a Sheet";
+    } else if (sheetReachable === null) {
+      cls = "is-sending"; html = '<span class="sync-spinner" aria-hidden="true"></span>Connecting';
+      label = "Connecting to the Sheet";
+    } else if (syncedOnce) {
+      cls = "is-synced"; html = "&#10003; Synced"; label = "All changes saved to the Sheet";
+    } else {
+      cls = "is-online"; html = "Online"; label = "Online: connected to the Sheet";
+    }
+    box.className = "sync-box " + cls;
+    box.title = label;
+    box.setAttribute("aria-label", label);
+    txt.innerHTML = html;
   }
 
   function setLoading(isLoading) {
@@ -1148,20 +1234,58 @@
     if (bar) bar.classList.toggle("is-active", pendingRequests > 0);
   }
 
+  // Any request that gets an answer back means the Sheet is reachable; a network failure means it isn't.
+  function trackedFetch(url, opts) {
+    return fetch(url, opts).then(function (r) { markReachable(true); return r.json(); },
+      function (err) { markReachable(false); throw err; });
+  }
+
   function apiGet(action) {
     var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=" + encodeURIComponent(action);
     setLoading(true);
-    return fetch(url).then(function (r) { return r.json(); }).finally(function () { setLoading(false); });
+    return trackedFetch(url).finally(function () { setLoading(false); });
   }
 
   // NOTE: no custom headers here on purpose — a bare string body defaults to
   // Content-Type: text/plain, which keeps this a CORS "simple request" so it
   // works straight from a locally-hosted page with no server-side CORS setup
   // (Apps Script web apps can't answer a CORS preflight OPTIONS request).
-  function apiPost(payload) {
-    setLoading(true);
-    return fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) }).then(function (r) { return r.json(); }).finally(function () { setLoading(false); });
+  function rawPost(payload) {
+    return trackedFetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
   }
+
+  // Changes go to the Sheet one at a time, in the order they were made. The Sheet script
+  // only handles one write at a time anyway, so firing them all at once just makes them
+  // queue up on Google's side and time out. The sync box counts down as each one lands.
+  var writeQueue = [];
+  var writeBusy = false;
+  function apiPost(payload) {
+    return new Promise(function (resolve, reject) {
+      writeQueue.push({ payload: payload, resolve: resolve, reject: reject });
+      pendingWrites++;
+      updateSyncBox();
+      pumpWrites();
+    });
+  }
+  function pumpWrites() {
+    if (writeBusy || !writeQueue.length) return;
+    writeBusy = true;
+    var job = writeQueue.shift();
+    var done = function () {
+      writeBusy = false;
+      pendingWrites = Math.max(0, pendingWrites - 1);
+      if (!pendingWrites && sheetReachable) syncedOnce = true;
+      updateSyncBox();
+      pumpWrites();
+    };
+    // settle first, then count down on the next tick, so a follow-up change chained onto
+    // this one is already queued and the box doesn't flash "Synced" in between
+    rawPost(job.payload).then(function (res) { job.resolve(res); setTimeout(done, 0); },
+      function (err) { job.reject(err); setTimeout(done, 0); });
+  }
+
+  window.addEventListener("offline", function () { markReachable(false); });
+  window.addEventListener("online", function () { if (BACKEND_URL) heartbeat(true); });
 
   // Pickup ticks are also remembered on this phone, so they survive a reload even if the
   // backend hasn't been given the pickup column yet.
@@ -1353,27 +1477,95 @@
 
   function focusNameInput() { var n = document.getElementById("staffNameInput"); if (n) n.focus(); }
 
+  function staffScreenOpen() {
+    return view.screen === "tab" && (view.activeTab === "settings" || view.activeTab === "dashboard");
+  }
+
+  function setStaffList(list) { staffList = list; staffListAt = Date.now(); }
+
+  // showErrors = the person just typed their name, so it counts as a change (and shows in the sync box).
+  // Otherwise it's the quiet "I'm still here" refresh when the app loads.
   function registerStaff(showErrors) {
     if (!BACKEND_URL || !staffName) return Promise.resolve();
-    return apiPost({ action: "registerStaff", deviceId: deviceId, name: staffName, role: staffRole, device: deviceLabel() })
+    var payload = { action: "registerStaff", deviceId: deviceId, name: staffName, role: staffRole, device: deviceLabel() };
+    return (showErrors ? apiPost(payload) : rawPost(payload))
       .then(function (res) {
-        if (res && res.ok) { if (res.staff) staffList = res.staff; staffStatus = ""; }
+        if (res && res.ok) { if (res.staff) setStaffList(res.staff); staffStatus = ""; }
         else staffStatus = "The Sheet script needs the staff update to keep the access list (" + (res && res.error) + ").";
-        if (view.screen === "tab" && view.activeTab === "settings") render();
+        if (staffScreenOpen()) render();
       })
       .catch(function (err) { if (showErrors) { staffStatus = "Couldn’t reach the Sheet (" + err + ")."; render(); } });
+  }
+
+  // ---------- who's online ----------
+  // While the app is open, each phone checks in with the Sheet every couple of minutes. The Sheet
+  // records the time on the Staff tab, and the Dashboard shows anyone who checked in within the last
+  // 5 minutes as online. The same request brings back the whole list, so the Dashboard stays fresh.
+  var ONLINE_WINDOW_SEC = 5 * 60;
+  var HEARTBEAT_MS = 2 * 60 * 1000;         // when the Dashboard isn't open
+  var HEARTBEAT_DASH_MS = 45 * 1000;        // while it is, so the online list updates sooner
+  var staffListAt = 0;                      // when staffList arrived (agoSec values are relative to this)
+  var lastHeartbeat = 0;
+  var heartbeatBusy = false;
+  var presenceSupported = true;             // false if the Sheet script doesn't have the heartbeat yet
+
+  function heartbeat(force) {
+    if (!BACKEND_URL || heartbeatBusy) return;
+    if (!force && document.hidden) return;
+    heartbeatBusy = true;
+    lastHeartbeat = Date.now();
+    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=heartbeat&deviceId=" + encodeURIComponent(deviceId);
+    trackedFetch(url).then(function (d) {
+      heartbeatBusy = false;
+      if (d && d.ok) {
+        presenceSupported = true;
+        if (d.staff) setStaffList(d.staff);
+        staffStatus = "";
+      } else {
+        // older Sheet script: no heartbeat yet, but the plain list still works
+        presenceSupported = false;
+        if (!staffList) loadStaff();
+      }
+      if (staffScreenOpen()) render();
+    }).catch(function () { heartbeatBusy = false; if (staffScreenOpen()) render(); });
+  }
+
+  setInterval(function () {
+    if (!BACKEND_URL || document.hidden) return;
+    var dashOpen = view.screen === "tab" && view.activeTab === "dashboard";
+    if (Date.now() - lastHeartbeat >= (dashOpen ? HEARTBEAT_DASH_MS : HEARTBEAT_MS)) heartbeat();
+  }, 15000);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && BACKEND_URL && Date.now() - lastHeartbeat > 30000) heartbeat();
+  });
+
+  // Seconds since this person last checked in, or null if the Sheet doesn't know.
+  function staffAgoSec(s) {
+    if (s.deviceId === deviceId && sheetReachable && !document.hidden) return 0;   // this phone, right now
+    if (typeof s.agoSec !== "number" || !isFinite(s.agoSec)) return null;
+    return Math.max(0, s.agoSec + (Date.now() - staffListAt) / 1000);
+  }
+  function isStaffOnline(s) { var a = staffAgoSec(s); return a !== null && a <= ONLINE_WINDOW_SEC; }
+  function agoText(sec) {
+    if (sec < 60) return "active now";
+    var m = Math.round(sec / 60);
+    if (m < 60) return m + " min ago";
+    var h = Math.round(m / 60);
+    if (h < 24) return h + " hr" + (h === 1 ? "" : "s") + " ago";
+    var dd = Math.round(h / 24);
+    return dd + " day" + (dd === 1 ? "" : "s") + " ago";
   }
 
   function loadStaff() {
     if (!BACKEND_URL) { staffList = null; staffStatus = ""; return; }
     staffStatus = staffList ? "" : "Loading…";
     apiGet("staff").then(function (d) {
-      if (d && d.ok) { staffList = d.staff || []; staffStatus = ""; }
+      if (d && d.ok) { setStaffList(d.staff || []); staffStatus = ""; }
       else staffStatus = "The Sheet script needs the staff update to keep the access list (" + (d && d.error) + ").";
-      if (view.screen === "tab" && view.activeTab === "settings") render();
+      if (staffScreenOpen()) render();
     }).catch(function (err) {
       staffStatus = "Couldn’t load the access list (" + err + ").";
-      if (view.screen === "tab" && view.activeTab === "settings") render();
+      if (staffScreenOpen()) render();
     });
   }
 
@@ -1402,6 +1594,7 @@
       backendBusy = false;
       if (!data || data.ok === false) {
         setConnStatus("Couldn't load — " + (data && data.error ? data.error : "check the URL"), false);
+        markReachable(false);
         return;
       }
       state.registrants = data.registrants.map(mapServerRegistrant);
@@ -1411,8 +1604,10 @@
       render();
       syncPendingWalkins();
       afterConnectStaff();
+      heartbeat(true);
     }).catch(function (err) {
       backendBusy = false;
+      markReachable(false);
       setConnStatus("Couldn't reach that URL — " + err, false);
     });
   }
@@ -1429,6 +1624,8 @@
     if (!url) { setConnStatus("Paste your Apps Script /exec URL above first", false); return; }
     BACKEND_URL = url;
     settingsUrlDraft = url;
+    sheetReachable = null; syncedOnce = false; staffList = null; staffListAt = 0;
+    updateSyncBox();
     try { localStorage.setItem("qrCheckinBackendUrl", url); } catch (e) { /* fine without persistence */ }
     view.shareStep = 0;
     render();   // so Settings picks up the new link (and its "Show setup QR" button) straight away
@@ -1802,6 +1999,7 @@
     if (tabName === "other") view.otherPage = null;
     render();
     if (tabName === "settings") loadStaff();
+    if (tabName === "dashboard") heartbeat(true);
   }
 
   function openCamera(mode) {
@@ -2022,11 +2220,30 @@
     '</div>';
   }
 
+  // ---------- Other > Walk-ins: printed / signed up / blank left ----------
+  // "Printed" is the highest blank card number printed on this phone, or the highest code anyone has
+  // signed up with if that's higher (so it's still right if another phone did the printing).
+  function walkinStatsHtml() {
+    var printedTo = walkinPrintedTo;
+    var codes = state.registrants.filter(function (r) { return isWalkinCode(r.id); });
+    codes.forEach(function (r) { var n = walkinNum(r.id); if (n > printedTo) printedTo = n; });
+    var used = codes.filter(function (r) { var n = walkinNum(r.id); return n >= 1 && n <= printedTo; }).length;
+    var left = Math.max(0, printedTo - used);
+    return '<div class="walkin-stats">' +
+      '<div class="walkin-stat is-printed"><span class="walkin-stat-num mono">' + printedTo + '</span><span class="walkin-stat-label">Cards printed</span></div>' +
+      '<div class="walkin-stat"><span class="walkin-stat-num mono">' + used + '</span><span class="walkin-stat-label">Signed up</span></div>' +
+      '<div class="walkin-stat' + (printedTo && !left ? ' is-empty' : '') + '"><span class="walkin-stat-num mono">' + left + '</span><span class="walkin-stat-label">Blank left</span></div>' +
+      '<div class="walkin-stats-range mono">' +
+        (printedTo ? walkinCode(1) + '&ndash;' + walkinCode(printedTo) + ' printed &middot; next ' + walkinCode(printedTo + 1)
+                   : 'No blank cards printed yet') +
+      '</div>' +
+    '</div>';
+  }
+
   // ---------- Other > Walk-ins > Print blank cards ----------
   function walkinPrintHtml() {
     var wStart = view.walkinStart || nextWalkinNumber();
     var wCount = view.walkinCount || gridFor(PSCOPE.walkin.st).perPage;
-    var used = state.registrants.filter(function (r) { return isWalkinCode(r.id); }).length;
     return '<div class="walkin-print">' +
       '<div class="walkin-print-head">Blank walk-in cards</div>' +
       '<div class="walkin-print-sub">For people signing up on the day. Each card has an empty name box, a QR code and its code (YSA-A0001 onward). Scan one to sign someone up.</div>' +
@@ -2035,9 +2252,6 @@
         '<label>How many cards<input class="text-input mono" id="walkinCount" type="number" inputmode="numeric" min="1" max="400" value="' + wCount + '"></label>' +
       '</div>' +
       '<div class="walkin-print-range mono" id="walkinRange">' + walkinCode(wStart) + ' to ' + walkinCode(Math.min(9999, wStart + wCount - 1)) + '</div>' +
-      (walkinPrintedTo || used ? '<div class="walkin-print-sub" style="margin-top:0">' +
-        (walkinPrintedTo ? 'Printed on this phone up to ' + walkinCode(walkinPrintedTo) + '. ' : '') +
-        used + ' walk-in' + (used === 1 ? '' : 's') + ' signed up so far.</div>' : '') +
       '<button class="btn btn-primary btn-block" data-action="printBlankCards" type="button">Print blank cards</button>' +
     '</div>';
   }
@@ -2719,6 +2933,53 @@
     render();
   }
 
+  // ---------- Dashboard: staff with access + who's online ----------
+  function staffPresenceHtml() {
+    if (!BACKEND_URL) {
+      return '<div class="card staff-card"><div class="staff-head"><span>Staff online</span></div>' +
+        '<div class="screen-sub" style="margin:0">Connect to a Sheet to see who has access and who’s using the app.</div></div>';
+    }
+    if (!staffList) {
+      return '<div class="card staff-card"><div class="staff-head"><span>Staff online</span></div>' +
+        '<div class="screen-sub" style="margin:0">' + esc(staffStatus || "Loading…") + '</div></div>';
+    }
+    var byNameSort = function (a, b) { return String(a.name).localeCompare(String(b.name)); };
+    var online = staffList.filter(isStaffOnline).sort(function (a, b) { return (staffAgoSec(a) - staffAgoSec(b)) || byNameSort(a, b); });
+    var offline = staffList.filter(function (s) { return !isStaffOnline(s); }).sort(function (a, b) {
+      var x = staffAgoSec(a), y = staffAgoSec(b);
+      if (x === null && y === null) return byNameSort(a, b);
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return x - y;
+    });
+    var row = function (s, isOn) {
+      var ago = staffAgoSec(s);
+      var when = isOn ? agoText(ago) : (ago !== null ? "last online " + agoText(ago) : (s.lastSeen ? "last seen " + s.lastSeen : "not seen yet"));
+      return '<div class="staff-row' + (isOn ? '' : ' is-away') + '">' +
+        '<span class="presence-avatar">' + avatarHtml({ name: s.name, photo: null }) + '<span class="presence-dot' + (isOn ? ' is-on' : '') + '"></span></span>' +
+        '<div class="staff-text">' +
+          '<span class="staff-name">' + esc(s.name || "(no name)") +
+            (s.role ? ' <span class="pill pill-sm ' + roleClass(s.role) + '">' + esc(s.role) + '</span>' : '') +
+            (s.deviceId === deviceId ? ' <span class="pill pill-walkin pill-sm">You</span>' : '') + '</span>' +
+          '<span class="staff-meta">' + esc(when) + (s.device ? ' &middot; ' + esc(s.device) : '') + '</span>' +
+        '</div>' +
+      '</div>';
+    };
+    return '<div class="card staff-card">' +
+      '<div class="staff-head"><span>Staff online</span>' +
+        '<span class="pill pill-sm ' + (online.length ? 'pill-success' : 'pill-neutral') + '">' + online.length + ' online</span>' +
+        '<span class="staff-total">' + staffList.length + ' with access</span>' +
+      '</div>' +
+      (online.length ? '<div class="staff-list">' + online.map(function (s) { return row(s, true); }).join("") + '</div>'
+                     : '<div class="screen-sub" style="margin:0">No one has had the app open in the last 5 minutes.</div>') +
+      (offline.length ? '<div class="list-group-head" style="margin-top:2px">Not online</div><div class="staff-list">' + offline.map(function (s) { return row(s, false); }).join("") + '</div>' : '') +
+      '<div class="screen-sub" style="margin:0;font-size:11px">' +
+        (presenceSupported ? 'Online = had the app open in the last 5 minutes. Updates every minute or so.'
+                           : 'Showing the access list only. Update the Sheet script (Staff.gs and Code.gs) to see who’s online.') +
+      '</div>' +
+    '</div>';
+  }
+
   // ---------- rendering: phone screen ----------
 
   function renderScreen() {
@@ -2769,7 +3030,8 @@
             '<span class="capacity-label mono">' + pct + '%</span>' +
           '</div>' +
           '<div class="id-print-note" style="margin-top:6px">' + checkedInCount + ' of ' + totalCount + ' registrants checked in so far</div>' +
-        '</div>';
+        '</div>' +
+        staffPresenceHtml();
       return;
     }
 
@@ -2893,7 +3155,7 @@
               : '')
           : '<div class="empty-note">No dietary requirements on file.</div>';
       } else if (view.otherPage === "walkins" && view.walkinsTab === "print") {
-        body = walkinsTabsHtml() +
+        body = walkinStatsHtml() + walkinsTabsHtml() +
           (view.walkinToast ? '<div class="toast">' + esc(view.walkinToast) + '</div>' : '') +
           presetPanelHtml("walkin", view.walkinCount || gridFor(PSCOPE.walkin.st).perPage) +
           walkinPrintHtml();
@@ -2902,7 +3164,7 @@
         walkins.sort(function (a, b) { return walkinNum(a.id) - walkinNum(b.id) || String(a.id).localeCompare(String(b.id)); });
         var wCheckedIn = walkins.filter(function (r) { return r.checkedIn; }).length;
         var wPending = walkins.filter(function (r) { return localWalkins[r.id] && !localWalkins[r.id].synced && BACKEND_URL; }).length;
-        body = walkinsTabsHtml() + (walkins.length
+        body = walkinStatsHtml() + walkinsTabsHtml() + (walkins.length
           ? '<div class="slot-head"><span class="slot-time">Total walk-ins</span>' +
               '<span class="slot-count"><span class="slot-count-num">' + walkins.length + '</span><span class="slot-count-label">' + wCheckedIn + ' checked in</span></span>' +
             '</div>' +
@@ -3233,7 +3495,6 @@
       var tabs =
         '<div class="tabs">' +
           '<button class="tab-btn' + (view.personTab === "checkin" ? " active" : "") + '" data-action="personTab" data-tab="checkin" type="button">Check-in</button>' +
-          '<button class="tab-btn' + (view.personTab === "activities" ? " active" : "") + '" data-action="personTab" data-tab="activities" type="button">Book activity</button>' +
           '<button class="tab-btn' + (view.personTab === "details" ? " active" : "") + '" data-action="personTab" data-tab="details" type="button">Details</button>' +
         '</div>';
 
@@ -3270,35 +3531,6 @@
         } else {
           body = '<div class="empty-note">No extra Sheet details for this person.</div>';
         }
-      } else {
-        body = '<div class="lanyard-list">' + state.activities.map(function (a) {
-          var cap = capacityState(a);
-          var booked = r.bookings.indexOf(a.id) !== -1;
-          var fillClass = cap.status === "full" ? "is-critical" : (cap.status === "near" ? "is-warning" : "");
-          var statusPill;
-          if (booked) statusPill = '<span class="pill pill-success">Booked</span>';
-          else if (cap.status === "full") statusPill = '<span class="pill pill-critical">Full</span>';
-          else if (cap.status === "near") statusPill = '<span class="pill pill-warning">' + (a.capacity - cap.taken) + ' left</span>';
-          else statusPill = '<span class="pill pill-neutral">' + (a.capacity - cap.taken) + ' left</span>';
-
-          var actionBtn = booked
-            ? ""
-            : (cap.status === "full"
-              ? '<button class="btn btn-block" disabled type="button">Just filled up</button>'
-              : '<button class="btn btn-primary btn-block" data-action="book" data-id="' + r.id + '" data-activity="' + a.id + '" type="button">Book this activity</button>');
-
-          return '<div class="activity-item">' +
-            '<div class="activity-head">' +
-              '<div><div class="activity-name">' + esc(a.name) + '</div><div class="activity-time">' + esc(a.time) + '</div></div>' +
-              statusPill +
-            '</div>' +
-            '<div class="capacity-row">' +
-              '<div class="capacity-track"><div class="capacity-fill ' + fillClass + '" style="width:' + (cap.ratio * 100) + '%"></div></div>' +
-              '<span class="capacity-label mono">' + cap.taken + ' / ' + a.capacity + '</span>' +
-            '</div>' +
-            actionBtn +
-          '</div>';
-        }).join("") + '</div>';
       }
 
       var qrCard =
@@ -3742,6 +3974,7 @@
 
   // ---------- init ----------
   render();
+  updateSyncBox();
   if (BACKEND_URL) loadFromBackend();
 })();
 </script>
