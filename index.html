@@ -247,14 +247,43 @@
   .sync-box.is-offline { background: var(--critical-tint); border-color: transparent; color: var(--critical); }
   .sync-box.is-sending { background: var(--accent-tint); border-color: transparent; color: var(--accent-ink); }
   .sync-count { font-size: 13px; font-weight: 600; min-width: 1ch; text-align: right; }
+  /* A spinning ring: faint full circle with a solid arc going round it. */
+  #syncBoxText { display: inline-flex; align-items: center; gap: 6px; }
   .sync-spinner {
-    width: 12px; height: 12px; flex: none;
+    display: inline-block; box-sizing: border-box;
+    width: 14px; height: 14px; flex: none;
     border-radius: 50%;
-    border: 2px solid currentColor;
-    border-right-color: transparent;
-    animation: syncSpin 0.8s linear infinite;
+    border: 2.5px solid rgba(127, 127, 127, 0.28);
+    border-top-color: currentColor;
+    animation: syncSpin 0.75s linear infinite;
   }
   @keyframes syncSpin { to { transform: rotate(360deg); } }
+  /* Spinners keep turning even with Reduce Motion on (just slower): a frozen one looks like a stray line. */
+  @media (prefers-reduced-motion: reduce) {
+    .sync-spinner, .boot-spinner { animation-duration: 1.4s !important; }
+  }
+
+  /* ---------- First-load screen (loading everyone from the Sheet) ---------- */
+  .boot-screen {
+    position: absolute; inset: 0; z-index: 20;
+    background: var(--surface);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 32px 28px; text-align: center;
+  }
+  .boot-screen[hidden] { display: none !important; }
+  .boot-screen [hidden] { display: none !important; }
+  .boot-eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+  .boot-title { font-family: "Fraunces", Georgia, serif; font-size: 26px; font-weight: 600; margin: -10px 0 0; color: var(--ink); }
+  .boot-count { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
+  .boot-count-num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-size: 44px; font-weight: 600; line-height: 1; color: var(--ink); }
+  .boot-count-of { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+  .boot-bar { width: 100%; max-width: 300px; height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; position: relative; }
+  .boot-bar-fill { height: 100%; width: 0; border-radius: 999px; background: var(--accent); transition: width 0.35s ease-out; }
+  .boot-bar.is-unknown .boot-bar-fill { position: absolute; width: 30%; animation: loadingSlide 1.1s linear infinite; }
+  .boot-status { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--ink-soft); min-height: 18px; }
+  .boot-spinner { display: inline-block; box-sizing: border-box; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid rgba(127,127,127,0.28); border-top-color: var(--accent); animation: syncSpin 0.75s linear infinite; flex: none; }
+  .boot-error { color: var(--critical); font-size: 13px; max-width: 300px; overflow-wrap: anywhere; }
+  .boot-actions { display: flex; gap: 10px; }
 
   .phone-content {
     flex: 1;
@@ -1123,6 +1152,18 @@
       <div class="loading-bar" id="loadingBar"></div>
       <div class="sync-box is-offline" id="syncBox" role="status" aria-live="polite"><span id="syncBoxText">Offline</span></div>
       <div class="phone-content" id="screen"></div>
+      <div class="boot-screen" id="bootScreen" hidden role="status" aria-live="polite">
+        <span class="boot-eyebrow">Brisbane YSA Convention</span>
+        <h2 class="boot-title">QR Check-In</h2>
+        <div class="boot-count"><span class="boot-count-num" id="bootCount">0</span><span class="boot-count-of" id="bootOf">people loaded</span></div>
+        <div class="boot-bar is-unknown" id="bootBar"><div class="boot-bar-fill" id="bootBarFill"></div></div>
+        <div class="boot-status" id="bootStatus"><span class="boot-spinner" aria-hidden="true"></span><span id="bootStatusText">Connecting to the Sheet…</span></div>
+        <div class="boot-error" id="bootError" hidden></div>
+        <div class="boot-actions" id="bootActions" hidden>
+          <button class="btn" data-action="bootSettings" type="button">Settings</button>
+          <button class="btn btn-primary" data-action="bootRetry" type="button">Try again</button>
+        </div>
+      </div>
       <nav class="phone-tabbar" aria-label="App navigation">
         <button class="tabbar-btn" id="tabDashboardBtn" data-action="selectTab" data-tab="dashboard" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11"/><path d="M12 20V4"/><path d="M20 20v-6"/></svg>
@@ -1586,23 +1627,127 @@
     registerStaff(true);
   }
 
+  // ---------- first-load screen ----------
+  // Everyone is loaded in pages of LIST_PAGE people, a few pages at a time, so the screen can show
+  // a real count ("340 of 1,000") and a bar that fills as they arrive.
+  var LIST_PAGE = 100;
+  var LIST_PARALLEL = 4;
+  var boot = { total: 0, loaded: 0, shown: 0, raf: null };
+
+  function fmtNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+  function bootEl(id) { return document.getElementById(id); }
+  function showBoot() {
+    boot.total = 0; boot.loaded = 0; boot.shown = 0;
+    bootEl("bootScreen").hidden = false;
+    bootEl("bootError").hidden = true;
+    bootEl("bootActions").hidden = true;
+    bootEl("bootStatus").hidden = false;
+    bootEl("bootStatusText").textContent = "Connecting to the Sheet…";
+    bootEl("bootBar").classList.add("is-unknown");
+    bootEl("bootBarFill").style.width = "";
+    bootEl("bootCount").textContent = "0";
+    bootEl("bootOf").textContent = "people loaded";
+  }
+  function hideBoot() { if (boot.raf) cancelAnimationFrame(boot.raf); boot.raf = null; bootEl("bootScreen").hidden = true; }
+  function bootProgress(loaded, total) {
+    boot.loaded = loaded; boot.total = total;
+    var bar = bootEl("bootBar");
+    if (total) {
+      bar.classList.remove("is-unknown");
+      bootEl("bootBarFill").style.width = Math.min(100, Math.round(loaded / total * 100)) + "%";
+      bootEl("bootOf").textContent = "of " + fmtNum(total) + " people loaded";
+    }
+    bootEl("bootStatusText").textContent = loaded >= total && total ? "Getting things ready…" : "Loading people from the Sheet…";
+    // count up smoothly to the real number rather than jumping a whole page at a time
+    if (!boot.raf) boot.raf = requestAnimationFrame(function tick() {
+      var gap = boot.loaded - boot.shown;
+      boot.shown = gap <= 0 ? boot.loaded : boot.shown + Math.max(1, Math.ceil(gap / 6));
+      bootEl("bootCount").textContent = fmtNum(boot.shown);
+      boot.raf = boot.shown < boot.loaded ? requestAnimationFrame(tick) : null;
+    });
+  }
+  function bootFail(msg) {
+    if (boot.raf) cancelAnimationFrame(boot.raf); boot.raf = null;
+    bootEl("bootScreen").hidden = false;
+    bootEl("bootStatus").hidden = true;
+    bootEl("bootBar").classList.remove("is-unknown");
+    bootEl("bootError").hidden = false;
+    bootEl("bootError").textContent = msg;
+    bootEl("bootActions").hidden = false;
+  }
+
+  function listPage(offset, limit) {
+    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=list&offset=" + offset + "&limit=" + limit;
+    setLoading(true);
+    return trackedFetch(url).finally(function () { setLoading(false); });
+  }
+  // One retry per page — Apps Script occasionally drops a request when several arrive at once.
+  function listPageRetry(offset, limit) {
+    return listPage(offset, limit).then(function (d) {
+      if (d && d.ok !== false) return d;
+      return listPage(offset, limit);
+    }, function () { return listPage(offset, limit); });
+  }
+
+  // Loads everyone (page by page when the Sheet script supports it) and resolves with
+  // { ok, registrants, activities, walkinPrintedTo } like the old single "list" call.
+  function loadAllPeople(onProgress) {
+    return listPageRetry(0, LIST_PAGE).then(function (first) {
+      if (!first || first.ok === false) return first;
+      // Older Sheet script ignores offset/limit and sends everyone in one go.
+      if (typeof first.total !== "number") { onProgress(first.registrants.length, first.registrants.length); return first; }
+      var total = first.total;
+      var pages = [first.registrants];
+      var loaded = first.registrants.length;
+      onProgress(loaded, total);
+      var offsets = [];
+      for (var o = LIST_PAGE; o < total; o += LIST_PAGE) offsets.push(o);
+      var next = 0, failed = null;
+      function worker() {
+        if (failed || next >= offsets.length) return Promise.resolve();
+        var idx = next++, off = offsets[idx];
+        return listPageRetry(off, LIST_PAGE).then(function (d) {
+          if (!d || d.ok === false) { failed = d || { ok: false, error: "empty reply" }; return; }
+          pages[idx + 1] = d.registrants;
+          loaded += d.registrants.length;
+          onProgress(Math.min(loaded, total), total);
+          return worker();
+        });
+      }
+      var pool = [];
+      for (var w = 0; w < LIST_PARALLEL; w++) pool.push(worker());
+      return Promise.all(pool).then(function () {
+        if (failed) return failed;
+        var all = [];
+        pages.forEach(function (pg) { if (pg) all = all.concat(pg); });
+        return { ok: true, registrants: all, activities: first.activities, walkinPrintedTo: first.walkinPrintedTo };
+      });
+    });
+  }
+
   function loadFromBackend() {
     if (!BACKEND_URL) return;
     setConnStatus("Loading from Sheet…", false);
     backendBusy = true;
-    apiGet("list").then(function (data) {
+    showBoot();
+    loadAllPeople(bootProgress).then(function (data) {
       backendBusy = false;
       if (!data || data.ok === false) {
-        setConnStatus("Couldn't load — " + (data && data.error ? data.error : "check the URL"), false);
+        var why = data && data.error ? data.error : "check the URL";
+        setConnStatus("Couldn't load — " + why, false);
         markReachable(false);
+        bootFail("Couldn’t load the Sheet — " + why);
         return;
       }
       state.registrants = data.registrants.map(mapServerRegistrant);
-      state.activities = data.activities;
+      state.activities = data.activities || [];
       mergeLocalWalkins();
       applySheetWalkinPrinted(data);
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
+      bootProgress(data.registrants.length, data.registrants.length);
+      setTimeout(hideBoot, 450);   // let the bar reach the end before it disappears
       syncPendingWalkins();
       afterConnectStaff();
       heartbeat(true);
@@ -1610,6 +1755,7 @@
       backendBusy = false;
       markReachable(false);
       setConnStatus("Couldn't reach that URL — " + err, false);
+      bootFail("Couldn’t reach the Sheet. Check the internet connection and try again.");
     });
   }
 
@@ -3970,6 +4116,8 @@
       else if (action === "shareStep") { view.shareStep = parseInt(t.getAttribute("data-step"), 10) || 0; render(); }
       else if (action === "saveWalkin") saveWalkin();
       else if (action === "cancelWalkin") cancelWalkin();
+      else if (action === "bootRetry") loadFromBackend();
+      else if (action === "bootSettings") { hideBoot(); selectTab("settings"); }
       return;
     }
     if (e.target && e.target.id === "resetBtn") resetDemo();

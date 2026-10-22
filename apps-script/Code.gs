@@ -123,6 +123,16 @@ function doGet(e) {
     var action = (e.parameter.action || 'list');
     if (action === 'list') {
       var reg = readRegistrants_();
+      // Optional paging (offset / limit) so the app can show a "340 of 1,000 loaded" count on first load.
+      // Without them, everyone comes back in one go (used by the quiet background refresh).
+      if (e.parameter.limit) {
+        var offset = Math.max(0, parseInt(e.parameter.offset, 10) || 0);
+        var limit = Math.max(1, Math.min(1000, parseInt(e.parameter.limit, 10) || 100));
+        var pageRows = reg.rows.slice(offset, offset + limit);
+        var page = { ok: true, total: reg.rows.length, offset: offset, registrants: pageRows.map(function (row) { return rowToRegistrant_(row, reg.map); }) };
+        if (offset === 0) { page.activities = readActivities_(); page.walkinPrintedTo = getWalkinPrintedTo_(); }
+        return jsonOut_(page);
+      }
       var registrants = reg.rows.map(function (row) { return rowToRegistrant_(row, reg.map); });
       var activities = readActivities_();
       return jsonOut_({ ok: true, registrants: registrants, activities: activities, walkinPrintedTo: getWalkinPrintedTo_() });
