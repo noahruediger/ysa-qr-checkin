@@ -87,3 +87,47 @@ function saveWalkinPhoto_(dataUri, id, name) {
   var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(WALKIN_PHOTO_FOLDER);
   return folder.createFile(blob).getUrl();
 }
+
+// ---------- How many blank walk-in cards have been printed ----------
+// Kept on an "App Settings" tab (created automatically) so every phone shows the same count.
+// It only ever goes up: printing YSA-A0001 to YSA-A0012 sets it to 12, and a phone that printed
+// fewer can't lower it. To start again, change the number on the tab by hand.
+var SHEET_APP_SETTINGS = 'App Settings';
+var WALKIN_PRINTED_KEY = 'Walk-in cards printed up to';
+
+function appSettingsSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_APP_SETTINGS);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_APP_SETTINGS);
+    sh.getRange(1, 1, 1, 2).setValues([['Setting', 'Value']]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function appSettingRow_(sh, key) {
+  var last = sh.getLastRow();
+  if (last < 2) return -1;
+  var keys = sh.getRange(2, 1, last - 1, 1).getValues();
+  for (var i = 0; i < keys.length; i++) { if (String(keys[i][0]).trim() === key) return i + 2; }
+  return -1;
+}
+
+function getWalkinPrintedTo_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_APP_SETTINGS);
+  if (!sh) return 0;
+  var row = appSettingRow_(sh, WALKIN_PRINTED_KEY);
+  if (row === -1) return 0;
+  return parseInt(sh.getRange(row, 2).getValue(), 10) || 0;
+}
+
+function setWalkinPrintedTo_(body) {
+  var n = Math.max(0, Math.min(9999, parseInt(body.to, 10) || 0));
+  var sh = appSettingsSheet_();
+  var row = appSettingRow_(sh, WALKIN_PRINTED_KEY);
+  if (row === -1) { sh.appendRow([WALKIN_PRINTED_KEY, n]); return { ok: true, walkinPrintedTo: n }; }
+  var current = parseInt(sh.getRange(row, 2).getValue(), 10) || 0;
+  if (n > current) sh.getRange(row, 2).setValue(n);
+  return { ok: true, walkinPrintedTo: Math.max(n, current) };
+}

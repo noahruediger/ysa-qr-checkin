@@ -83,7 +83,7 @@ The **Fold-over with photo · 2 per page** layout prints each person as a 164 ×
 
 ## Walk-ins
 
-For people who sign up on the day. In **Other → Walk-ins → Print blank cards**, print blank walk-in cards (codes `YSA-A0001` onward, with an empty name box). Scanning a card that isn't linked to anyone opens a sign-up screen: type their name, take their photo, and the card is linked to them. Walk-ins are added as new rows on the Registrants tab (`Walk-in` = Yes) and their photos are saved to a Drive folder called "YSA Walk-in Photos". **Other → Walk-ins** lists them all.
+For people who sign up on the day. In **Other → Walk-ins → Print blank cards**, print blank walk-in cards (codes `YSA-A0001` onward, with an empty name box). Scanning a card that isn't linked to anyone opens a sign-up screen: type their name, take their photo, and the card is linked to them. Walk-ins are added as new rows on the Registrants tab (`Walk-in` = Yes) and their photos are saved to a Drive folder called "YSA Walk-in Photos". **Other → Walk-ins** lists them all, with how many blank cards have been printed, signed up and are still blank. The printed count is shared through an `App Settings` tab (created automatically), so every phone shows the same number.
 
 ## Sync status (top right)
 

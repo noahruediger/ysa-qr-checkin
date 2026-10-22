@@ -1600,6 +1600,7 @@
       state.registrants = data.registrants.map(mapServerRegistrant);
       state.activities = data.activities;
       mergeLocalWalkins();
+      applySheetWalkinPrinted(data);
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
       syncPendingWalkins();
@@ -2221,8 +2222,8 @@
   }
 
   // ---------- Other > Walk-ins: printed / signed up / blank left ----------
-  // "Printed" is the highest blank card number printed on this phone, or the highest code anyone has
-  // signed up with if that's higher (so it's still right if another phone did the printing).
+  // "Printed" is the highest blank card number printed (shared through the Sheet's App Settings tab),
+  // or the highest code anyone has signed up with if that's somehow higher.
   function walkinStatsHtml() {
     var printedTo = walkinPrintedTo;
     var codes = state.registrants.filter(function (r) { return isWalkinCode(r.id); });
@@ -2256,6 +2257,25 @@
     '</div>';
   }
 
+  // The Sheet keeps the shared count (App Settings tab) so every phone shows the same number.
+  // Take whichever is higher; if this phone printed more than the Sheet knows about, tell the Sheet.
+  function applySheetWalkinPrinted(data) {
+    if (!data || typeof data.walkinPrintedTo !== "number") return;   // older Sheet script
+    var fromSheet = data.walkinPrintedTo;
+    if (fromSheet > walkinPrintedTo) setWalkinPrintedTo(fromSheet);
+    else if (walkinPrintedTo > fromSheet) sendWalkinPrinted();
+  }
+  function setWalkinPrintedTo(n) {
+    walkinPrintedTo = n;
+    try { localStorage.setItem("qrCheckinWalkinPrintedTo", String(n)); } catch (e) { /* fine */ }
+  }
+  function sendWalkinPrinted() {
+    if (!BACKEND_URL) return;
+    apiPost({ action: "walkinPrinted", to: walkinPrintedTo }).then(function (res) {
+      if (res && res.ok && res.walkinPrintedTo > walkinPrintedTo) { setWalkinPrintedTo(res.walkinPrintedTo); render(); }
+    }).catch(function () { /* the next load will try again */ });
+  }
+
   // ---------- blank walk-in cards (printing) ----------
   function nextWalkinNumber() {
     var hi = walkinPrintedTo;
@@ -2275,8 +2295,8 @@
     renderPrintCards(items, PSCOPE.walkin.st);
     var last = start + count - 1;
     if (last > walkinPrintedTo) {
-      walkinPrintedTo = last;
-      try { localStorage.setItem("qrCheckinWalkinPrintedTo", String(last)); } catch (e) { /* fine */ }
+      setWalkinPrintedTo(last);
+      sendWalkinPrinted();
     }
     view.walkinStart = null;   // next time, suggest the number after this batch
     lastPrintedBatch = [];
@@ -2444,6 +2464,7 @@
       if (!data || data.ok === false || view.confirm) return;
       state.registrants = data.registrants.map(mapServerRegistrant);
       mergeLocalWalkins();
+      applySheetWalkinPrinted(data);
       render();
     }).catch(function () { /* stay on what we have */ });
   }, 20000);

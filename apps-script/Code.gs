@@ -125,7 +125,7 @@ function doGet(e) {
       var reg = readRegistrants_();
       var registrants = reg.rows.map(function (row) { return rowToRegistrant_(row, reg.map); });
       var activities = readActivities_();
-      return jsonOut_({ ok: true, registrants: registrants, activities: activities });
+      return jsonOut_({ ok: true, registrants: registrants, activities: activities, walkinPrintedTo: getWalkinPrintedTo_() });
     }
     if (action === 'person') {
       return jsonOut_(personDetails_(e.parameter.id));
@@ -258,6 +258,7 @@ function doPost(e) {
     }
 
     if (action === 'registerWalkin') return jsonOut_(registerWalkin_(body, reg));       // Walkin.gs
+    if (action === 'walkinPrinted') return jsonOut_(setWalkinPrintedTo_(body));         // Walkin.gs
     if (action === 'reportProblem') return jsonOut_(reportProblem_(body));              // Problems.gs
     if (action === 'setProblemStatus') return jsonOut_(setProblemStatus_(body));        // Problems.gs
     if (action === 'registerStaff') return jsonOut_(registerStaff_(body));              // Staff.gs
