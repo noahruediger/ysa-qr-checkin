@@ -141,7 +141,7 @@ function doGet(e) {
       return jsonOut_(personDetails_(e.parameter.id));
     }
     if (action === 'photo') {
-      return jsonOut_(photoDataUri_(e.parameter.id));
+      return jsonOut_(photoDataUri_(e.parameter.id, e.parameter.size === 'full'));
     }
     if (action === 'problems') return jsonOut_(listProblems_());   // Problems.gs
     if (action === 'staff') return jsonOut_(listStaff_());         // Staff.gs
@@ -322,7 +322,9 @@ function photoFor_(row, map) {
 }
 
 // Fallback the app uses if a photo URL fails to load (e.g. a private Drive file): send it as base64.
-function photoDataUri_(regId) {
+// full = true is for the full-screen photo viewer: sends the original image (up to ~6 MB)
+// instead of Drive's small thumbnail, so staff can actually recognise the person.
+function photoDataUri_(regId, full) {
   var reg = readRegistrants_();
   var i = findRowByQrId_(reg, regId);
   if (i === -1) return { ok: false, error: 'Unknown ID: ' + regId };
@@ -332,9 +334,11 @@ function photoDataUri_(regId) {
     var id = driveIdFrom_(raw);
     if (!id) return { ok: false, error: 'Not a Drive photo' };
     var file = DriveApp.getFileById(id);
-    var blob = file.getThumbnail() || file.getBlob();
+    var blob = null;
+    if (full && /^image\//i.test(file.getMimeType()) && file.getSize() <= 6000000) blob = file.getBlob();
+    if (!blob) blob = file.getThumbnail() || file.getBlob();
     var bytes = blob.getBytes();
-    if (bytes.length > 2000000) return { ok: false, error: 'Photo too large' };
+    if (bytes.length > 6000000) return { ok: false, error: 'Photo too large' };
     return { ok: true, dataUri: 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(bytes) };
   } catch (err) {
     return { ok: false, error: String(err) };

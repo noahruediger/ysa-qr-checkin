@@ -1089,15 +1089,26 @@
   .avatar-btn { padding: 0; border: none; background: none; border-radius: 50%; cursor: zoom-in; flex: none; }
   .avatar-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .photo-viewer {
-    position: absolute; inset: 0; z-index: 12; background: rgba(10, 12, 14, 0.96);
-    display: flex; align-items: center; justify-content: center; padding: 20px; cursor: zoom-out;
+    position: absolute; inset: 0; z-index: 30; background: #000;
+    display: flex; flex-direction: column; cursor: zoom-out;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
   }
-  .photo-viewer-inner { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; max-height: 100%; }
-  .photo-viewer-img { display: block; max-width: 100%; max-height: calc(80vh - 120px); max-height: min(520px, calc(80vh - 120px)); border-radius: 12px; object-fit: contain; background: #222; }
-  .photo-viewer-name { color: #fff; font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 600; text-align: center; margin-top: 6px; }
-  .photo-viewer-meta { color: rgba(255,255,255,0.7); font-size: 12px; text-align: center; }
-  .photo-viewer-hint { color: rgba(255,255,255,0.5); font-size: 11px; margin-top: 4px; }
-  .photo-viewer-missing { color: #fff; padding: 40px 20px; border: 1px dashed rgba(255,255,255,0.4); border-radius: 12px; }
+  /* The photo takes every pixel the screen has; name and ID sit underneath in a slim strip. */
+  .photo-viewer-inner { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; }
+  .photo-viewer-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
+  .photo-viewer-img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .photo-viewer-loading {
+    position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    background: rgba(0,0,0,0.6); color: rgba(255,255,255,0.85); font-size: 12px;
+  }
+  .photo-viewer-loading[hidden] { display: none; }
+  .photo-viewer-loading .boot-spinner { border-color: rgba(255,255,255,0.25); border-top-color: #fff; }
+  .photo-viewer-caption { flex: none; padding: 10px 16px 14px; text-align: center; background: #000; }
+  .photo-viewer-name { color: #fff; font-family: "Fraunces", Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.2; }
+  .photo-viewer-meta { color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px; }
+  .photo-viewer-hint { color: rgba(255,255,255,0.45); font-size: 11px; margin-top: 4px; }
+  .photo-viewer-missing { color: #fff; padding: 40px 20px; border: 1px dashed rgba(255,255,255,0.4); border-radius: 12px; margin: 20px; }
 
   /* ---------- Staff access list ---------- */
   .staff-card { display: flex; flex-direction: column; gap: 10px; }
@@ -1966,8 +1977,58 @@
     fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(id))
       .then(function (x) { return x.json(); })
       .then(function (d) {
-        if (d && d.ok && d.dataUri) { r.photo = d.dataUri; render(); }
+        if (d && d.ok && d.dataUri) { if (!r.photoOrig) r.photoOrig = r.photo; r.photo = d.dataUri; render(); }
       }).catch(function () { /* initials stay */ });
+  }, true);
+
+  // ---------- full-size photo for the viewer ----------
+  // Lists use small thumbnails. The full-screen viewer shows the small one straight away, then swaps
+  // in a big version: a large Drive thumbnail if this phone can see it, otherwise the original
+  // image fetched through the Sheet script (needed for private registration-form uploads).
+  function bigPhotoUrl(url) {
+    if (!url || url.indexOf("data:") === 0) return null;
+    if (/drive\.google\.com\/thumbnail/.test(url)) return url.replace(/([?&]sz=)w\d+/, "$1w2000").replace(/^(?!.*[?&]sz=)(.*)$/, "$1&sz=w2000");
+    return null;   // other links (e.g. test stock photos) are already as big as they come
+  }
+  function loadBigPhoto(r, img, loadingEl) {
+    var done = function (src) {
+      if (src) { r.photoBig = src; if (view.photoView === r.id && img.isConnected) img.src = src; }
+      if (loadingEl) loadingEl.hidden = true;
+    };
+    var viaSheet = function () {
+      if (!BACKEND_URL) { done(null); return; }
+      fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&size=full&id=" + encodeURIComponent(r.id))
+        .then(function (x) { return x.json(); })
+        .then(function (d) { done(d && d.ok && d.dataUri ? d.dataUri : null); })
+        .catch(function () { done(null); });
+    };
+    var src = r.photoOrig || r.photo || "";   // the Sheet's link, even if a small copy replaced it
+    var big = bigPhotoUrl(src);
+    if (!big) {
+      // walk-ins taken on this phone are already as big as they get; Drive links go through the Sheet
+      if (src.indexOf("data:") === 0 || !/drive\.google\.com/.test(src)) { done(null); return; }
+      viaSheet(); return;
+    }
+    var probe = new Image();
+    probe.referrerPolicy = "no-referrer";
+    probe.onload = function () { done(big); };
+    probe.onerror = viaSheet;
+    probe.src = big;
+  }
+  // If even the small photo won't load in the viewer, fall back to the Sheet copy, then a message.
+  document.addEventListener("error", function (e) {
+    var img = e.target;
+    if (!img || !img.classList || !img.classList.contains("photo-viewer-img")) return;
+    var r = byId(state.registrants, view.photoView);
+    if (r && !img.getAttribute("data-retried") && BACKEND_URL) {
+      img.setAttribute("data-retried", "1");
+      fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&size=full&id=" + encodeURIComponent(r.id))
+        .then(function (x) { return x.json(); })
+        .then(function (d) { if (d && d.ok && d.dataUri) { r.photoBig = d.dataUri; img.src = d.dataUri; } else throw 0; })
+        .catch(function () { img.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" })); });
+      return;
+    }
+    img.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" }));
   }, true);
 
   function spotsTaken(activity) {
@@ -3905,22 +3966,19 @@
         pv.setAttribute("data-action", "closePhoto");
         pv.innerHTML =
           '<div class="photo-viewer-inner" role="dialog" aria-modal="true" aria-label="' + esc(pr0.name) + '\u2019s photo">' +
-            '<img class="photo-viewer-img" src="' + esc(pr0.photo) + '" alt="Photo of ' + esc(pr0.name) + '" referrerpolicy="no-referrer">' +
-            '<div class="photo-viewer-name">' + esc(pr0.name) + '</div>' +
-            '<div class="photo-viewer-meta mono">' + esc(pr0.id) + (pr0.ward && pr0.ward !== "Walk-in" ? ' &middot; ' + esc(pr0.ward) : '') + '</div>' +
-            '<div class="photo-viewer-hint">Tap anywhere to close</div>' +
+            '<div class="photo-viewer-stage">' +
+              '<img class="photo-viewer-img" src="' + esc(pr0.photoBig || pr0.photo) + '" alt="Photo of ' + esc(pr0.name) + '" referrerpolicy="no-referrer">' +
+              '<div class="photo-viewer-loading"' + (pr0.photoBig ? ' hidden' : '') + '><span class="boot-spinner" aria-hidden="true"></span>Loading full size</div>' +
+            '</div>' +
+            '<div class="photo-viewer-caption">' +
+              '<div class="photo-viewer-name">' + esc(pr0.name) + '</div>' +
+              '<div class="photo-viewer-meta mono">' + esc(pr0.id) + (pr0.ward && pr0.ward !== "Walk-in" ? ' &middot; ' + esc(pr0.ward) : '') + '</div>' +
+              '<div class="photo-viewer-hint">Tap anywhere to close</div>' +
+            '</div>' +
           '</div>';
         shell.appendChild(pv);
         var pImg = pv.querySelector(".photo-viewer-img");
-        // a private Drive photo that won't load directly is fetched once through the Sheet script
-        pImg.addEventListener("error", function () {
-          if (pImg.getAttribute("data-retried") || !BACKEND_URL) { pImg.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" })); return; }
-          pImg.setAttribute("data-retried", "1");
-          fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(pr0.id))
-            .then(function (x) { return x.json(); })
-            .then(function (d) { if (d && d.ok && d.dataUri) { pr0.photo = d.dataUri; pImg.src = d.dataUri; } else pImg.dispatchEvent(new Event("error")); })
-            .catch(function () { pImg.dispatchEvent(new Event("error")); });
-        });
+        if (!pr0.photoBig) loadBigPhoto(pr0, pImg, pv.querySelector(".photo-viewer-loading"));
         return;
       }
       view.photoView = null;
