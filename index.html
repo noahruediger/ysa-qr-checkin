@@ -832,6 +832,11 @@
     font-size: 12.5px;
     text-align: center;
   }
+  .toast-error {
+    background: var(--critical-tint);
+    color: var(--critical);
+    text-align: left;
+  }
 
 
   /* ---------- Phone-first: on a phone the app fills the whole screen ---------- */
@@ -1239,6 +1244,7 @@
 
   // ---------- top-right sync box ----------
   // Offline  — no Sheet connected, or the last request couldn't reach it
+  //            (a number means that many saves are still on this phone)
   // Online   — connected, nothing sent yet this session
   // ◌ 5      — 5 changes still waiting to reach the Sheet (sent one at a time)
   // Synced   — every change has reached the Sheet
@@ -1258,13 +1264,18 @@
     var txt = document.getElementById("syncBoxText");
     if (!box || !txt) return;
     var cls, html, label;
-    if (pendingWrites > 0) {
+    if (!BACKEND_URL || sheetReachable === false) {
+      cls = "is-offline";
+      html = pendingWrites > 0 ? "Offline " + pendingWrites : "Offline";
+      label = !BACKEND_URL
+        ? "Offline: not connected to a Sheet"
+        : (pendingWrites
+          ? "Offline: " + pendingWrites + " change" + (pendingWrites === 1 ? "" : "s") + " saved on this phone, will retry"
+          : "Offline: can't reach the Sheet");
+    } else if (pendingWrites > 0) {
       cls = "is-sending";
       html = '<span class="sync-spinner" aria-hidden="true"></span><span class="sync-count">' + pendingWrites + '</span>';
       label = "Sending " + pendingWrites + " change" + (pendingWrites === 1 ? "" : "s") + " to the Sheet";
-    } else if (!BACKEND_URL || sheetReachable === false) {
-      cls = "is-offline"; html = "Offline";
-      label = BACKEND_URL ? "Offline: can't reach the Sheet" : "Offline: not connected to a Sheet";
     } else if (sheetReachable === null) {
       cls = "is-sending"; html = '<span class="sync-spinner" aria-hidden="true"></span>Connecting';
       label = "Connecting to the Sheet";
@@ -1309,35 +1320,282 @@
   // Changes go to the Sheet one at a time, in the order they were made. The Sheet script
   // only handles one write at a time anyway, so firing them all at once just makes them
   // queue up on Google's side and time out. The sync box counts down as each one lands.
-  var writeQueue = [];
+  //
+  // Check-ins, ticks, lost flags, pickups, bookings and "printed" marks are also written
+  // to localStorage. A failed save stays there and retries; the person screen shows an error.
+  // Walk-ins, problems and staff posts stay memory-only (walk-in photos are large, and those
+  // screens already keep their own local copy).
+  //
+  // Follow-up (not in this change): a request that never returns — for example the script
+  // lock wait — still blocks this pump until the browser ends it. A lock failure that does
+  // return is retried with backoff, but there is no separate lock-timeout budget.
+  var WRITE_STORE = "qrCheckinWriteQueue";
+  var DURABLE_ACTIONS = { checkin: 1, uncheckin: 1, markTask: 1, markPickedUp: 1, setLost: 1, book: 1, markPrinted: 1 };
+  var durableQueue = [];
+  var memQueue = [];
   var writeBusy = false;
+  var writeSeq = 1;
+  var sendingUid = null;
+  var retryTimer = null;
+  var writeToast = null; // { id, text } — on-screen error when a save fails
+
+  function loadDurableQueue() {
+    try { durableQueue = JSON.parse(localStorage.getItem(WRITE_STORE) || "[]") || []; }
+    catch (e) { durableQueue = []; }
+    if (!Array.isArray(durableQueue)) durableQueue = [];
+    durableQueue.forEach(function (j) {
+      if (!j || !j.payload) return;
+      if (!j.uid) j.uid = makeWriteUid();
+      if (!j.seq) j.seq = writeSeq++;
+      else if (j.seq >= writeSeq) writeSeq = j.seq + 1;
+      j.tries = j.tries || 0;
+      j.nextTry = j.nextTry || 0;
+      j.settled = true; // the original promise is gone after a reload
+    });
+    durableQueue = durableQueue.filter(function (j) { return j && j.payload && DURABLE_ACTIONS[j.payload.action]; });
+  }
+  function saveDurableQueue() {
+    try {
+      var slim = durableQueue.map(function (j) {
+        return { uid: j.uid, seq: j.seq, payload: j.payload, tries: j.tries || 0, nextTry: j.nextTry || 0, lastError: j.lastError || "", settled: !!j.settled };
+      });
+      localStorage.setItem(WRITE_STORE, JSON.stringify(slim));
+    } catch (e) { /* in-memory queue still retries this session */ }
+  }
+  function makeWriteUid() {
+    return "w-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+  }
+  function recountPending() {
+    pendingWrites = durableQueue.length + memQueue.length;
+    if (!pendingWrites && sheetReachable) syncedOnce = true;
+    updateSyncBox();
+  }
+  function isCheckAction(action) { return action === "checkin" || action === "uncheckin"; }
+  function supersedes(next, prev) {
+    if (!next || !prev) return false;
+    if (isCheckAction(next.action) && isCheckAction(prev.action)) return !!next.id && next.id === prev.id;
+    if (next.action !== prev.action) return false;
+    if (next.action === "markTask") return next.id === prev.id && next.task === prev.task;
+    if (next.action === "markPickedUp" || next.action === "setLost") return !!next.id && next.id === prev.id;
+    return false;
+  }
+  function dropDurable(job, superseded) {
+    var i = durableQueue.indexOf(job);
+    if (i !== -1) durableQueue.splice(i, 1);
+    saveDurableQueue();
+    if (!job.settled) {
+      job.settled = true;
+      if (job.resolve) job.resolve(superseded ? { ok: true, superseded: true } : { ok: true });
+    }
+  }
+  function collapseDurable(payload) {
+    var doomed = [];
+    durableQueue.forEach(function (j) {
+      if (j.uid !== sendingUid && supersedes(payload, j.payload)) doomed.push(j);
+    });
+    doomed.forEach(function (j) { dropDurable(j, true); });
+  }
+  function hasNewer(job) {
+    for (var i = 0; i < durableQueue.length; i++) {
+      var other = durableQueue[i];
+      if (other !== job && other.seq > job.seq && supersedes(other.payload, job.payload)) return true;
+    }
+    return false;
+  }
+  function retryableError(msg) {
+    var s = String(msg || "");
+    if (!s) return true;
+    if (s === "full") return false;
+    if (/^Unknown (ID|activity|task)\b/i.test(s)) return false;
+    if (/^Missing expected column/i.test(s)) return false;
+    if (/^Bad JSON/i.test(s)) return false;
+    if (/^Name is required/i.test(s)) return false;
+    return true;
+  }
+  function friendlyErr(message) {
+    var s = String(message || "something went wrong").replace(/^Error:\s*/i, "").trim();
+    if (/failed to fetch|networkerror|load failed|network request failed|offline/i.test(s)) return "the phone can’t reach the Sheet.";
+    if (s === "full") return "that activity is full.";
+    if (s.length > 160) s = s.slice(0, 160) + "…";
+    return /[.!?]$/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s.charAt(0).toLowerCase() + s.slice(1) + ".";
+  }
+  function showWriteToast(job, message, retrying) {
+    var p = job.payload || {};
+    var who = "";
+    if (p.id && typeof state !== "undefined" && state.registrants) {
+      var person = byId(state.registrants, p.id);
+      who = person && person.name ? person.name : p.id;
+    }
+    var what = {
+      markTask: "that tick",
+      markPickedUp: "the pickup",
+      setLost: p.value ? "the lost flag" : "the found update",
+      checkin: "the check-in",
+      uncheckin: "the check-in change",
+      book: "the booking",
+      markPrinted: "the printed flag"
+    }[p.action] || "that change";
+    var text = "Couldn’t save " + what + (who ? " for " + who : "") + " — " + friendlyErr(message)
+      + (retrying ? " It’s saved on this phone and will retry." : "");
+    if (writeToast && writeToast.text === text) return;
+    writeToast = { id: p.id || null, text: text };
+    if (typeof view !== "undefined" && view && typeof renderKeepingScroll === "function") {
+      var onThisPerson = view.screen === "scanned" && (!p.id || view.registrantId === p.id);
+      if (onThisPerson || !viewBlocksRefreshRender()) renderKeepingScroll();
+    }
+  }
+  function forgetLocalEcho(p) {
+    if (!p || typeof localTasks === "undefined") return;
+    if (p.action === "markTask" && p.id && localTasks[p.id]) {
+      delete localTasks[p.id][p.task];
+      if (!Object.keys(localTasks[p.id]).length) delete localTasks[p.id];
+      saveLocalTasks();
+    }
+    if (p.action === "markPickedUp" && p.id && typeof localPicked !== "undefined" && localPicked[p.id]) {
+      delete localPicked[p.id];
+      saveLocalPicked();
+    }
+  }
+  function nextWriteJob() {
+    var now = Date.now();
+    var best = null;
+    durableQueue.forEach(function (j) {
+      if ((j.nextTry || 0) > now) return;
+      if (!best || j.seq < best.job.seq) best = { kind: "dur", job: j };
+    });
+    memQueue.forEach(function (j) {
+      if (!best || j.seq < best.job.seq) best = { kind: "mem", job: j };
+    });
+    return best;
+  }
+  function scheduleRetryWake() {
+    if (retryTimer) return;
+    var next = 0;
+    var now = Date.now();
+    durableQueue.forEach(function (j) {
+      var t = j.nextTry || 0;
+      if (t > now && (!next || t < next)) next = t;
+    });
+    if (!next) return;
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      pumpWrites();
+    }, Math.max(250, next - Date.now() + 30));
+  }
+  function finishWrite(next, res, err) {
+    writeBusy = false;
+    sendingUid = null;
+    var job = next.job;
+    if (next.kind === "mem") {
+      var mi = memQueue.indexOf(job);
+      if (mi !== -1) memQueue.splice(mi, 1);
+      recountPending();
+      if (err) job.reject(err); else job.resolve(res);
+      setTimeout(pumpWrites, 0);
+      return;
+    }
+    if (hasNewer(job)) {
+      dropDurable(job, true);
+      recountPending();
+      setTimeout(pumpWrites, 0);
+      return;
+    }
+    var retry = false;
+    var message = "";
+    if (err) { retry = true; message = String(err && err.message ? err.message : err); }
+    else if (!res || res.ok === false) {
+      message = (res && res.error) || "Couldn’t save";
+      retry = retryableError(message);
+    }
+    if (retry) {
+      job.tries = (job.tries || 0) + 1;
+      job.lastError = message;
+      job.nextTry = Date.now() + Math.min(60000, 2000 * Math.pow(2, Math.min(job.tries - 1, 5)));
+      var idx = durableQueue.indexOf(job);
+      if (idx !== -1) { durableQueue.splice(idx, 1); durableQueue.push(job); }
+      saveDurableQueue();
+      if (!job.settled && job.reject) {
+        job.settled = true;
+        job.reject(new Error(message));
+      }
+      showWriteToast(job, message, true);
+      recountPending();
+      setTimeout(pumpWrites, 0);
+      return;
+    }
+    var ok = !!(res && res.ok);
+    var at = durableQueue.indexOf(job);
+    if (at !== -1) durableQueue.splice(at, 1);
+    saveDurableQueue();
+    if (ok) {
+      forgetLocalEcho(job.payload);
+      // Don't hide an error for a different save that is still waiting (for example a
+      // tick that failed, followed by the check-in post which succeeded).
+      var stillFailing = false;
+      var okId = job.payload && job.payload.id;
+      for (var fi = 0; fi < durableQueue.length; fi++) {
+        var other = durableQueue[fi];
+        if (!other.lastError) continue;
+        if (!okId || !other.payload || other.payload.id === okId) { stillFailing = true; break; }
+      }
+      if (!stillFailing && writeToast && (!okId || !writeToast.id || writeToast.id === okId)) writeToast = null;
+      if (job.settled) applyRetrySuccess(job, res);
+      else if (job.resolve) { job.settled = true; job.resolve(res); }
+    } else {
+      forgetLocalEcho(job.payload);
+      showWriteToast(job, message, false);
+      if (!job.settled && job.resolve) { job.settled = true; job.resolve(res || { ok: false, error: message }); }
+    }
+    recountPending();
+    setTimeout(pumpWrites, 0);
+  }
+  function pumpWrites() {
+    if (writeBusy || !BACKEND_URL) return;
+    var next = nextWriteJob();
+    if (!next) { scheduleRetryWake(); recountPending(); return; }
+    if (next.kind === "dur" && hasNewer(next.job)) {
+      dropDurable(next.job, true);
+      recountPending();
+      pumpWrites();
+      return;
+    }
+    writeBusy = true;
+    if (next.kind === "dur") sendingUid = next.job.uid;
+    rawPost(next.job.payload).then(
+      function (res) { finishWrite(next, res, null); },
+      function (err) { finishWrite(next, null, err); }
+    );
+  }
   function apiPost(payload) {
     return new Promise(function (resolve, reject) {
-      writeQueue.push({ payload: payload, resolve: resolve, reject: reject });
-      pendingWrites++;
-      updateSyncBox();
+      var seq = writeSeq++;
+      if (DURABLE_ACTIONS[payload.action]) {
+        collapseDurable(payload);
+        durableQueue.push({
+          uid: makeWriteUid(), seq: seq, payload: payload, tries: 0, nextTry: 0,
+          lastError: "", settled: false, resolve: resolve, reject: reject
+        });
+        saveDurableQueue();
+        recountPending();
+        pumpWrites();
+        return;
+      }
+      memQueue.push({ seq: seq, payload: payload, resolve: resolve, reject: reject });
+      recountPending();
       pumpWrites();
     });
   }
-  function pumpWrites() {
-    if (writeBusy || !writeQueue.length) return;
-    writeBusy = true;
-    var job = writeQueue.shift();
-    var done = function () {
-      writeBusy = false;
-      pendingWrites = Math.max(0, pendingWrites - 1);
-      if (!pendingWrites && sheetReachable) syncedOnce = true;
-      updateSyncBox();
-      pumpWrites();
-    };
-    // settle first, then count down on the next tick, so a follow-up change chained onto
-    // this one is already queued and the box doesn't flash "Synced" in between
-    rawPost(job.payload).then(function (res) { job.resolve(res); setTimeout(done, 0); },
-      function (err) { job.reject(err); setTimeout(done, 0); });
-  }
+  loadDurableQueue();
+  recountPending();
 
   window.addEventListener("offline", function () { markReachable(false); });
-  window.addEventListener("online", function () { if (BACKEND_URL) heartbeat(true); });
+  window.addEventListener("online", function () {
+    if (!BACKEND_URL) return;
+    durableQueue.forEach(function (j) { j.nextTry = 0; });
+    saveDurableQueue();
+    heartbeat(true);
+    pumpWrites();
+  });
 
   // Pickup ticks are also remembered on this phone, so they survive a reload even if the
   // backend hasn't been given the pickup column yet.
@@ -1470,28 +1728,122 @@
     return '<span class="detail-value">' + e + '</span>';
   }
 
+  // Sheet dates arrive as ISO strings (JSON Date) or, rarely, as serial numbers.
+  // Show them in Brisbane local time. Strings the script already formatted pass through.
+  // Time-only values (year before 1970, or a pickup serial) stay "h:mm a" so sorting still works.
+  function formatBrisbaneParts(d, timeZone) {
+    var fmt = new Intl.DateTimeFormat("en-AU", {
+      timeZone: timeZone, day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true
+    });
+    var map = {};
+    fmt.formatToParts(d).forEach(function (p) { if (p.type !== "literal") map[p.type] = p.value; });
+    var year = Number(new Intl.DateTimeFormat("en-AU", { timeZone: timeZone, year: "numeric" }).format(d));
+    var ap = String(map.dayPeriod || "").toUpperCase();
+    var hm = map.hour + ":" + map.minute + (ap ? " " + ap : "");
+    if (year < 1970) return hm;
+    return map.day + " " + map.month + ", " + hm;
+  }
+  function friendlyTime(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number" && isFinite(v)) {
+      var utc = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000));
+      if (isNaN(utc.getTime())) return String(v);
+      return formatBrisbaneParts(utc, "UTC");
+    }
+    var s = String(v).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /^\d{4}-\d{2}-\d{2}[ T]\d/.test(s)) {
+      var d = new Date(s);
+      if (!isNaN(d.getTime())) return formatBrisbaneParts(d, "Australia/Brisbane");
+    }
+    return s;
+  }
+
+  // Replay saves that haven't reached the Sheet yet, so a reload doesn't paint over them.
+  function applyPayloadToRegistrant(r, p) {
+    if (!r || !p) return;
+    if (p.action === "markTask") {
+      if (p.id !== r.id) return;
+      var t = findTask(p.task);
+      if (!t) return;
+      r[t.field] = !!p.value;
+      if (p.value) { var taskAt = friendlyTime(p.at); if (taskAt) r[t.atField] = taskAt; }
+      else r[t.atField] = null;
+    } else if (p.action === "markPickedUp") {
+      if (p.id !== r.id) return;
+      r.pickedUp = !!p.value;
+      if (p.value) { var pickAt = friendlyTime(p.at); if (pickAt) r.pickedUpAt = pickAt; }
+      else r.pickedUpAt = null;
+    } else if (p.action === "setLost") {
+      if (p.id !== r.id) return;
+      r.lost = !!p.value;
+      if (p.value) { var lostAt = friendlyTime(p.at); if (lostAt) r.lostAt = lostAt; }
+      else r.lostAt = null;
+    } else if (p.action === "checkin") {
+      if (p.id !== r.id) return;
+      r.checkedIn = true;
+      var inAt = friendlyTime(p.at);
+      if (inAt) r.checkedInAt = inAt;
+    } else if (p.action === "uncheckin") {
+      if (p.id !== r.id) return;
+      r.checkedIn = false;
+      r.checkedInAt = null;
+    } else if (p.action === "book") {
+      if (p.id !== r.id || !p.activityId) return;
+      if (r.bookings.indexOf(p.activityId) === -1) r.bookings.push(p.activityId);
+    } else if (p.action === "markPrinted") {
+      var ids = p.ids || (p.id ? [p.id] : []);
+      if (ids.indexOf(r.id) === -1) return;
+      r.qrPrinted = true;
+      var printedAt = friendlyTime(p.at);
+      if (printedAt && !r.qrPrintedAt) r.qrPrintedAt = printedAt;
+    }
+  }
+  function overlayPending(r) {
+    if (!r) return r;
+    durableQueue.forEach(function (job) { applyPayloadToRegistrant(r, job.payload); });
+    return r;
+  }
+  function hasPendingTask(id, task) {
+    for (var i = 0; i < durableQueue.length; i++) {
+      var p = durableQueue[i].payload;
+      if (p && p.action === "markTask" && p.id === id && p.task === task) return true;
+    }
+    return false;
+  }
+  function hasPendingAction(action, id) {
+    for (var i = 0; i < durableQueue.length; i++) {
+      var p = durableQueue[i].payload;
+      if (p && p.action === action && p.id === id) return true;
+    }
+    return false;
+  }
+
   function mapServerRegistrant(r) {
-    return {
+    var mapped = {
       id: r.id, name: r.name, ward: r.ward, stake: r.stake, dietary: r.dietary,
-      checkedIn: !!r.checkedIn, checkedInAt: r.checkedInAt || null,
-      bookings: r.bookings || [],
-      qrPrinted: !!r.qrPrinted, qrPrintedAt: r.qrPrintedAt || null,
-      lost: !!r.lost, lostAt: r.lostAt || null,
-      needsPickup: !!r.needsPickup, pickupTime: r.pickupTime || null,
+      checkedIn: !!r.checkedIn, checkedInAt: friendlyTime(r.checkedInAt),
+      bookings: (r.bookings || []).slice(),
+      qrPrinted: !!r.qrPrinted, qrPrintedAt: friendlyTime(r.qrPrintedAt),
+      lost: !!r.lost, lostAt: friendlyTime(r.lostAt),
+      needsPickup: !!r.needsPickup, pickupTime: friendlyTime(r.pickupTime),
       details: normalizeDetails(r.details),
       pickedUp: r.pickedUp === undefined ? !!localPicked[r.id] : !!r.pickedUp,
-      pickedUpAt: r.pickedUpAt || (localPicked[r.id] && localPicked[r.id] !== true ? localPicked[r.id] : null),
+      pickedUpAt: r.pickedUp === undefined
+        ? (localPicked[r.id] && localPicked[r.id] !== true ? friendlyTime(localPicked[r.id]) : null)
+        : friendlyTime(r.pickedUpAt),
       team: r.team || null,
       photo: r.photo || r.photoUrl || null,
       shirtSize: r.shirtSize || null,
       shirtColour: r.shirtColour || null,
       packGiven: r.packGiven === undefined ? !!(localTasks[r.id] && localTasks[r.id].pack) : !!r.packGiven,
-      packGivenAt: r.packGivenAt || (localTasks[r.id] && localTasks[r.id].pack) || null,
+      packGivenAt: r.packGiven === undefined ? friendlyTime(localTasks[r.id] && localTasks[r.id].pack) : friendlyTime(r.packGivenAt),
       shirtGiven: r.shirtGiven === undefined ? !!(localTasks[r.id] && localTasks[r.id].shirt) : !!r.shirtGiven,
-      shirtGivenAt: r.shirtGivenAt || (localTasks[r.id] && localTasks[r.id].shirt) || null,
+      shirtGivenAt: r.shirtGiven === undefined ? friendlyTime(localTasks[r.id] && localTasks[r.id].shirt) : friendlyTime(r.shirtGivenAt),
       walkin: !!r.walkin || isWalkinCode(r.id),
       fromServer: true
     };
+    return overlayPending(mapped);
   }
 
   // ---------- staff names ("People with access") ----------
@@ -1588,7 +1940,9 @@
     if (Date.now() - lastHeartbeat >= (dashOpen ? HEARTBEAT_DASH_MS : HEARTBEAT_MS)) heartbeat();
   }, 15000);
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && BACKEND_URL && Date.now() - lastHeartbeat > 30000) heartbeat();
+    if (document.hidden || !BACKEND_URL) return;
+    if (Date.now() - lastHeartbeat > 30000) heartbeat();
+    if (Date.now() - lastPeopleRefresh > PEOPLE_REFRESH_MS) quietRefresh();
   });
 
   // Seconds since this person last checked in, or null if the Sheet doesn't know.
@@ -1755,6 +2109,8 @@
       state.activities = data.activities || [];
       mergeLocalWalkins();
       applySheetWalkinPrinted(data);
+      reconcileLegacyTicks();
+      lastPeopleRefresh = Date.now();
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
       bootProgress(data.registrants.length, data.registrants.length);
@@ -1788,6 +2144,7 @@
     view.shareStep = 0;
     render();   // so Settings picks up the new link (and its "Show setup QR" button) straight away
     loadFromBackend();
+    pumpWrites();
   }
 
   // ---------- demo data: 100 made-up registrants (fake names, fake numbers) ----------
@@ -1902,6 +2259,7 @@
 
   var state = clone(initialState);
   mergeLocalWalkins();
+  if (!BACKEND_URL) reconcileLegacyTicks();
   var view = defaultView();
   var lastUpdatedRegistrant = null;
   var lastUpdatedActivity = null;
@@ -2049,8 +2407,8 @@
   }
 
   function timeToMinutes(t) {
-    if (!t) return 0;
-    var m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (t == null || t === "") return 0;
+    var m = String(t).match(/(\d+):(\d+)\s*(AM|PM)/i);
     if (!m) return 0;
     var h = parseInt(m[1], 10) % 12;
     var min = parseInt(m[2], 10);
@@ -2162,25 +2520,66 @@
       cameraRaf = requestAnimationFrame(tickCamera);
       return;
     }
-    var r =byId(state.registrants, text) || byId(state.registrants, text.toUpperCase());
-    if (r) {
-      stopCamera();
-      scan(r.id);
+    considerScan(text, true);
+  }
+
+  // Unknown codes refresh the Sheet once before we say they aren't recognised,
+  // so a person added on another phone (or a walk-in just signed up) can still be found.
+  var scanLookupBusy = false;
+  var scanMissAt = {};
+  function showScanMiss(label, fromCamera) {
+    if (fromCamera) {
+      var msgEl = document.getElementById("cameraMsg");
+      if (msgEl) msgEl.textContent = "That code isn't recognized in this Sheet — try again";
+      if (cameraUnrecognizedTimer) clearTimeout(cameraUnrecognizedTimer);
+      cameraUnrecognizedTimer = setTimeout(function () {
+        var m = document.getElementById("cameraMsg");
+        if (m && view.screen === "camera") m.textContent = cameraPrompt();
+      }, 1800);
+      cameraRaf = requestAnimationFrame(tickCamera);
       return;
     }
-    if (isWalkinCode(text)) {
-      stopCamera();
-      openWalkin(text.toUpperCase());
+    var errEl = document.getElementById("manualError");
+    if (errEl) errEl.textContent = "No registrant found with ID " + label + ".";
+  }
+  function considerScan(text, fromCamera) {
+    var raw = String(text || "").trim();
+    var norm = raw.toUpperCase();
+    var r = byId(state.registrants, raw) || byId(state.registrants, norm);
+    if (r) { stopCamera(); scan(r.id); return; }
+    if (fromCamera && scanMissAt[norm] && Date.now() - scanMissAt[norm] < 8000) {
+      cameraRaf = requestAnimationFrame(tickCamera);
       return;
     }
-    var msgEl = document.getElementById("cameraMsg");
-    if (msgEl) msgEl.textContent = "That code isn't recognized in this Sheet — try again";
-    if (cameraUnrecognizedTimer) clearTimeout(cameraUnrecognizedTimer);
-    cameraUnrecognizedTimer = setTimeout(function () {
-      var m = document.getElementById("cameraMsg");
-      if (m && view.screen === "camera") m.textContent = cameraPrompt();
-    }, 1800);
-    cameraRaf = requestAnimationFrame(tickCamera);
+    var finishMiss = function () {
+      if (isWalkinCode(norm)) { stopCamera(); openWalkin(norm); return; }
+      if (fromCamera) scanMissAt[norm] = Date.now();
+      showScanMiss(fromCamera ? raw : norm, fromCamera);
+    };
+    if (!BACKEND_URL) { finishMiss(); return; }
+    if (scanLookupBusy) {
+      if (fromCamera) cameraRaf = requestAnimationFrame(tickCamera);
+      return;
+    }
+    scanLookupBusy = true;
+    if (fromCamera) {
+      var msgEl = document.getElementById("cameraMsg");
+      if (msgEl) msgEl.textContent = "Checking the Sheet…";
+    } else {
+      var errEl = document.getElementById("manualError");
+      if (errEl) errEl.textContent = "Checking the Sheet…";
+    }
+    quietRefresh().then(function () {
+      scanLookupBusy = false;
+      if (fromCamera && view.screen !== "camera") return;
+      var again = byId(state.registrants, raw) || byId(state.registrants, norm);
+      if (again) { stopCamera(); scan(again.id); return; }
+      finishMiss();
+    }, function () {
+      scanLookupBusy = false;
+      if (fromCamera && view.screen !== "camera") return;
+      finishMiss();
+    });
   }
 
   function makeQrCanvas(text, size) {
@@ -2241,11 +2640,7 @@
     var id = (idRaw || "").trim().toUpperCase();
     var errEl = document.getElementById("manualError");
     if (!id) { if (errEl) errEl.textContent = "Enter the ID printed on the lanyard."; return; }
-    var r = byId(state.registrants, id);
-    if (!r && isWalkinCode(id)) { stopCamera(); openWalkin(id); return; }
-    if (!r) { if (errEl) errEl.textContent = "No registrant found with ID " + id + "."; return; }
-    stopCamera();
-    scan(r.id);
+    considerScan(id, false);
   }
 
   // ---------- walk-in sign-up ----------
@@ -2523,47 +2918,61 @@
   function checkIn(registrantId) {
     var r = byId(state.registrants, registrantId);
     if (!r || r.checkedIn) return;
-    if (BACKEND_URL) {
-      setConnStatus("Checking in…", false);
-      apiPost({ action: "checkin", id: registrantId }).then(function (res) {
-        if (res && res.ok) {
-          Object.assign(r, mapServerRegistrant(res.registrant));
-          lastUpdatedRegistrant = registrantId;
-          setConnStatus("Connected — live off the test Sheet", true);
-        } else {
-          setConnStatus("Check-in failed — " + (res && res.error), false);
-        }
-        render();
-      }).catch(function (err) { setConnStatus("Check-in failed — " + err, false); render(); });
-      return;
-    }
     r.checkedIn = true;
     r.checkedInAt = nowTime();
     lastUpdatedRegistrant = registrantId;
     render();
+    if (!BACKEND_URL) return;
+    apiPost({ action: "checkin", id: registrantId, at: r.checkedInAt }).then(function (res) {
+      if (res && res.superseded) return;
+      var current = liveRegistrant(registrantId, r);
+      if (res && res.ok && res.registrant) {
+        adoptServerRegistrant(current, res.registrant);
+        setConnStatus("Connected — live off the test Sheet", true);
+      } else if (!(res && res.ok)) {
+        current.checkedIn = false;
+        current.checkedInAt = null;
+        setConnStatus("Check-in failed — " + ((res && res.error) || "couldn’t save"), false);
+      }
+      render();
+    }).catch(function (err) { setConnStatus("Check-in saved on this phone — " + err + ". It will retry.", false); });
   }
 
+  // Lost is explicit (true/false), like pickup. Marking lost asks first; marking found does not.
   function toggleLost(registrantId) {
     var r = byId(state.registrants, registrantId);
     if (!r) return;
-    if (BACKEND_URL) {
-      setConnStatus("Updating…", false);
-      apiPost({ action: "toggleLost", id: registrantId }).then(function (res) {
-        if (res && res.ok) {
-          Object.assign(r, mapServerRegistrant(res.registrant));
-          lastUpdatedRegistrant = registrantId;
-          setConnStatus("Connected — live off the test Sheet", true);
-        } else {
-          setConnStatus("Update failed — " + (res && res.error), false);
-        }
-        render();
-      }).catch(function (err) { setConnStatus("Update failed — " + err, false); render(); });
+    if (!r.lost) {
+      view.confirm = { kind: "lost", id: registrantId, next: true };
+      render();
       return;
     }
-    r.lost = !r.lost;
-    r.lostAt = r.lost ? nowTime() : null;
+    setLost(registrantId, false);
+  }
+
+  function setLost(registrantId, lost) {
+    var r = byId(state.registrants, registrantId);
+    if (!r) return;
+    var prevLost = r.lost;
+    var prevAt = r.lostAt;
+    r.lost = !!lost;
+    r.lostAt = lost ? nowTime() : null;
     lastUpdatedRegistrant = registrantId;
     render();
+    if (!BACKEND_URL) return;
+    apiPost({ action: "setLost", id: registrantId, value: !!lost, at: r.lostAt }).then(function (res) {
+      if (res && res.superseded) return;
+      var current = liveRegistrant(registrantId, r);
+      if (res && res.ok && res.registrant) {
+        adoptServerRegistrant(current, res.registrant);
+        setConnStatus("Connected — live off the test Sheet", true);
+      } else if (!(res && res.ok)) {
+        current.lost = prevLost;
+        current.lostAt = prevAt;
+        setConnStatus("Couldn’t update lost — " + ((res && res.error) || "couldn’t save"), false);
+      }
+      render();
+    }).catch(function (err) { setConnStatus("Lost flag saved on this phone — " + err + ". It will retry.", false); });
   }
 
   function book(registrantId, activityId) {
@@ -2573,25 +2982,24 @@
     if (r.bookings.indexOf(activityId) !== -1) return;
     var cap = capacityState(a);
     if (cap.taken >= a.capacity) return; // filled just before the tap — mirrors the "capacity hit" branch
-    if (BACKEND_URL) {
-      setConnStatus("Booking…", false);
-      apiPost({ action: "book", id: registrantId, activityId: activityId }).then(function (res) {
-        if (res && res.ok) {
-          Object.assign(r, mapServerRegistrant(res.registrant));
-          lastUpdatedRegistrant = registrantId;
-          lastUpdatedActivity = activityId;
-          setConnStatus("Connected — live off the test Sheet", true);
-        } else {
-          setConnStatus(res && res.error === "full" ? "That activity just filled up" : "Booking failed — " + (res && res.error), false);
-        }
-        render();
-      }).catch(function (err) { setConnStatus("Booking failed — " + err, false); render(); });
-      return;
-    }
     r.bookings.push(activityId);
     lastUpdatedRegistrant = registrantId;
     lastUpdatedActivity = activityId;
     render();
+    if (!BACKEND_URL) return;
+    apiPost({ action: "book", id: registrantId, activityId: activityId }).then(function (res) {
+      if (res && res.superseded) return;
+      var current = liveRegistrant(registrantId, r);
+      if (res && res.ok && res.registrant) {
+        adoptServerRegistrant(current, res.registrant);
+        setConnStatus("Connected — live off the test Sheet", true);
+      } else if (!(res && res.ok)) {
+        var bi = current.bookings.indexOf(activityId);
+        if (bi !== -1) current.bookings.splice(bi, 1);
+        setConnStatus(res && res.error === "full" ? "That activity just filled up" : "Booking failed — " + ((res && res.error) || "couldn’t save"), false);
+      }
+      render();
+    }).catch(function (err) { setConnStatus("Booking saved on this phone — " + err + ". It will retry.", false); });
   }
 
   // ---------- airport pickup ----------
@@ -2629,13 +3037,30 @@
     lastUpdatedRegistrant = r.id;
     render();
     if (BACKEND_URL) {
-      apiPost({ action: "markTask", id: r.id, task: t.key, value: c.next }).then(function (res) {
-        if (res && res.ok) setConnStatus("Connected \u2014 live off the test Sheet", true);
-        else setConnStatus("Saved on this phone only \u2014 the Sheet script needs the check-in list update (" + (res && res.error) + ")", false);
-        if (checkInChange) return apiPost({ action: checkInChange, id: r.id });
-      }).then(function (res2) {
-        if (res2 && !res2.ok && checkInChange === "uncheckin") setConnStatus("Undo saved on this phone only \u2014 the Sheet still shows them checked in", false);
-      }).catch(function (err) { setConnStatus("Saved on this phone only \u2014 " + err, false); });
+      // Queue the tick and any check-in change together. The Sheet also marks Checked In
+      // once both tasks are Yes, so a second phone doesn't have to see both ticks itself.
+      apiPost({ action: "markTask", id: r.id, task: t.key, value: !!c.next, at: r[t.atField] }).then(function (res) {
+        if (res && res.superseded) return;
+        var current = liveRegistrant(r.id, r);
+        if (res && res.ok) {
+          if (res.registrant) adoptServerRegistrant(current, res.registrant);
+          setConnStatus("Connected — live off the test Sheet", true);
+          render();
+        } else {
+          current[t.field] = !c.next;
+          current[t.atField] = c.next ? null : current[t.atField];
+          setConnStatus("Couldn’t save that tick — " + ((res && res.error) || "the Sheet refused it") + ".", false);
+          render();
+        }
+      }).catch(function (err) { setConnStatus("Tick saved on this phone — " + err + ". It will retry.", false); });
+      if (checkInChange) {
+        apiPost({ action: checkInChange, id: r.id, at: r.checkedInAt }).then(function (res2) {
+          if (res2 && res2.superseded) return;
+          var current2 = liveRegistrant(r.id, r);
+          if (res2 && res2.ok && res2.registrant) { adoptServerRegistrant(current2, res2.registrant); render(); }
+          else if (res2 && !res2.ok && checkInChange === "uncheckin") setConnStatus("Undo saved on this phone only — the Sheet still shows them checked in", false);
+        }).catch(function () { /* the tick queue retries this too */ });
+      }
     }
   }
 
@@ -2646,6 +3071,7 @@
     if (c.kind === "deletePreset") { deletePreset(c.scope); return; }
     if (c.kind === "resetPrinted") { resetPrinted(); return; }
     if (c.kind === "task") { answerTask(c); return; }
+    if (c.kind === "lost") { setLost(c.id, true); return; }
     var r = byId(state.registrants, c.id);
     if (!r) { render(); return; }
     r.pickedUp = c.next;
@@ -2655,26 +3081,182 @@
     lastUpdatedRegistrant = r.id;
     render();
     if (BACKEND_URL) {
-      apiPost({ action: "markPickedUp", id: r.id, value: c.next, at: r.pickedUpAt }).then(function (res) {
-        if (res && res.ok) setConnStatus("Connected — live off the test Sheet", true);
-        else setConnStatus("Pickup saved on this phone only — the Sheet script needs the pickup update (" + (res && res.error) + ")", false);
-      }).catch(function (err) { setConnStatus("Pickup saved on this phone only — " + err, false); });
+      apiPost({ action: "markPickedUp", id: r.id, value: !!c.next, at: r.pickedUpAt }).then(function (res) {
+        if (res && res.superseded) return;
+        var current = liveRegistrant(r.id, r);
+        if (res && res.ok) {
+          if (res.registrant) adoptServerRegistrant(current, res.registrant);
+          setConnStatus("Connected — live off the test Sheet", true);
+          render();
+        } else {
+          current.pickedUp = !c.next;
+          current.pickedUpAt = c.next ? null : current.pickedUpAt;
+          setConnStatus("Couldn’t save pickup — " + ((res && res.error) || "the Sheet refused it") + ".", false);
+          render();
+        }
+      }).catch(function (err) { setConnStatus("Pickup saved on this phone — " + err + ". It will retry.", false); });
     }
   }
 
-  // Quiet background refresh while the airport list is open, so several volunteers'
-  // ticks show up in the live counts.
+  function liveRegistrant(id, fallback) {
+    return byId(state.registrants, id) || fallback;
+  }
+
+  // A background refresh can replace the registrants array while a save is in flight.
+  // Always merge into the object that's on screen now.
+  function adoptServerRegistrant(local, raw) {
+    if (!raw) return;
+    var target = (local && local.id && byId(state.registrants, local.id)) || local;
+    if (!target) return;
+    var keepDetails = target.details;
+    var keepPhoto = target.photo && String(target.photo).indexOf("data:") === 0 ? target.photo : null;
+    var keepBig = target.photoBig;
+    var keepOrig = target.photoOrig;
+    var mapped = mapServerRegistrant(raw);
+    if (keepDetails && !mapped.details) mapped.details = keepDetails;
+    if (keepPhoto) mapped.photo = keepPhoto;
+    if (keepBig) mapped.photoBig = keepBig;
+    if (keepOrig) mapped.photoOrig = keepOrig;
+    Object.assign(target, mapped);
+  }
+
+  function applyRetrySuccess(job, res) {
+    var p = job.payload || {};
+    if (res && res.registrant && p.id) {
+      var person = byId(state.registrants, p.id);
+      if (person) adoptServerRegistrant(person, res.registrant);
+    } else if (p.action === "markPrinted") {
+      (p.ids || []).forEach(function (id) {
+        var rr = byId(state.registrants, id);
+        if (rr) { rr.qrPrinted = true; if (!rr.qrPrintedAt) rr.qrPrintedAt = nowTime(); }
+      });
+    }
+    setConnStatus("Connected — live off the test Sheet", true);
+    if (typeof view !== "undefined" && view && !viewBlocksRefreshRender()) renderKeepingScroll();
+  }
+
+  // Ticks stored on this phone before the write queue existed (or while the Sheet
+  // column was missing). If the server doesn't have them yet, put them back on screen
+  // and into the queue. Once the server agrees, drop the local echo so another phone
+  // can untick without this phone putting it back.
+  function reconcileLegacyTicks() {
+    var tasksChanged = false;
+    Object.keys(localTasks).forEach(function (id) {
+      var ticks = localTasks[id] || {};
+      var r = byId(state.registrants, id);
+      CHECKIN_TASKS.forEach(function (t) {
+        var local = ticks[t.key];
+        if (!local) return;
+        if (hasPendingTask(id, t.key)) return;
+        if (r && r[t.field]) { delete ticks[t.key]; tasksChanged = true; return; }
+        if (r) {
+          r[t.field] = true;
+          var at = local === true ? null : friendlyTime(local);
+          if (at) r[t.atField] = at;
+        }
+        if (BACKEND_URL) {
+          apiPost({ action: "markTask", id: id, task: t.key, value: true, at: r ? r[t.atField] : (local === true ? null : local) }).catch(function () {});
+        }
+      });
+      if (ticks && !Object.keys(ticks).length) delete localTasks[id];
+    });
+    if (tasksChanged) saveLocalTasks();
+    var pickedChanged = false;
+    Object.keys(localPicked).forEach(function (id) {
+      var local = localPicked[id];
+      if (!local) return;
+      if (hasPendingAction("markPickedUp", id)) return;
+      var r = byId(state.registrants, id);
+      if (r && r.pickedUp) { delete localPicked[id]; pickedChanged = true; return; }
+      if (r) {
+        r.pickedUp = true;
+        var atp = local === true ? null : friendlyTime(local);
+        if (atp) r.pickedUpAt = atp;
+      }
+      if (BACKEND_URL) {
+        apiPost({ action: "markPickedUp", id: id, value: true, at: r ? r.pickedUpAt : (local === true ? null : local) }).catch(function () {});
+      }
+    });
+    if (pickedChanged) saveLocalPicked();
+  }
+
+  function peopleSig(list) {
+    var parts = [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      parts.push(r.id, r.name, r.checkedIn ? 1 : 0, r.checkedInAt || "", r.lost ? 1 : 0, r.lostAt || "",
+        r.packGiven ? 1 : 0, r.packGivenAt || "", r.shirtGiven ? 1 : 0, r.shirtGivenAt || "",
+        r.pickedUp ? 1 : 0, r.pickedUpAt || "", r.qrPrinted ? 1 : 0,
+        (r.bookings || []).join(","), r.walkin ? 1 : 0, r.needsPickup ? 1 : 0, r.pickupTime || "");
+    }
+    var acts = state.activities || [];
+    for (var j = 0; j < acts.length; j++) parts.push("a", acts[j].id, acts[j].capacity, acts[j].otherBookings);
+    return parts.join("\u0001");
+  }
+
+  function applyPeopleSnapshot(data) {
+    var prev = {};
+    state.registrants.forEach(function (r) { prev[r.id] = r; });
+    state.registrants = (data.registrants || []).map(function (raw) {
+      var mapped = mapServerRegistrant(raw);
+      var old = prev[mapped.id];
+      if (!old) return mapped;
+      if (old.details && !mapped.details) mapped.details = old.details;
+      if (old.photo && String(old.photo).indexOf("data:") === 0) mapped.photo = old.photo;
+      if (old.photoBig) mapped.photoBig = old.photoBig;
+      if (old.photoOrig) mapped.photoOrig = old.photoOrig;
+      return mapped;
+    });
+    if (data.activities) state.activities = data.activities;
+    mergeLocalWalkins();
+    applySheetWalkinPrinted(data);
+    reconcileLegacyTicks();
+  }
+
+  function viewBlocksRefreshRender() {
+    if (!view) return true;
+    if (view.confirm || view.nameModal || view.problemModal || view.photoView) return true;
+    if (view.screen === "camera" || view.screen === "walkin" || view.screen === "pin") return true;
+    var active = document.activeElement;
+    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return true;
+    return false;
+  }
+
+  function renderKeepingScroll() {
+    var el = document.getElementById("screen");
+    var top = el ? el.scrollTop : 0;
+    render();
+    if (el) el.scrollTop = top;
+  }
+
+  // Light refresh everywhere so lost flags, check-ins and new people show up
+  // without a full reload. Skips the loading bar. Unsent local ticks are reapplied.
+  var PEOPLE_REFRESH_MS = 25000;
+  var lastPeopleRefresh = Date.now();
+  var refreshPromise = null;
+  function quietRefresh() {
+    if (!BACKEND_URL || backendBusy) return Promise.resolve(null);
+    if (refreshPromise) return refreshPromise;
+    lastPeopleRefresh = Date.now();
+    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=list";
+    refreshPromise = trackedFetch(url).then(function (data) {
+      refreshPromise = null;
+      if (!data || data.ok === false || !data.registrants) return data;
+      var before = peopleSig(state.registrants);
+      applyPeopleSnapshot(data);
+      if (peopleSig(state.registrants) !== before && !viewBlocksRefreshRender()) renderKeepingScroll();
+      return data;
+    }, function (err) {
+      refreshPromise = null;
+      throw err;
+    });
+    return refreshPromise;
+  }
   setInterval(function () {
-    if (!BACKEND_URL || backendBusy || view.confirm) return;
-    if (!(view.screen === "tab" && view.activeTab === "other" && view.otherPage === "airport")) return;
-    apiGet("list").then(function (data) {
-      if (!data || data.ok === false || view.confirm) return;
-      state.registrants = data.registrants.map(mapServerRegistrant);
-      mergeLocalWalkins();
-      applySheetWalkinPrinted(data);
-      render();
-    }).catch(function () { /* stay on what we have */ });
-  }, 20000);
+    if (!BACKEND_URL || document.hidden || backendBusy || view.confirm) return;
+    if (Date.now() - lastPeopleRefresh < PEOPLE_REFRESH_MS) return;
+    quietRefresh();
+  }, 5000);
 
   function setPersonTab(tab) {
     view.personTab = tab;
@@ -3215,7 +3797,7 @@
     var caption = document.getElementById("phoneCaption");
 
     if (view.screen === "tab" && view.activeTab === "dashboard") {
-      caption.textContent = "A live snapshot of the Sheet, recalculated fresh every time this tab opens.";
+      caption.textContent = "A live snapshot of the Sheet. Lost people and check-ins refresh about every half minute.";
       var totalCount = state.registrants.length;
       var checkedInCount = state.registrants.filter(function (r) { return r.checkedIn; }).length;
       var pct = totalCount ? Math.round((checkedInCount / totalCount) * 100) : 0;
@@ -4082,6 +4664,23 @@
     }
     var r = byId(state.registrants, c.id);
     if (!r) return;
+    if (c.kind === "lost") {
+      m.innerHTML =
+        '<div class="modal" role="dialog" aria-modal="true" aria-label="Mark as lost">' +
+          '<h3 class="modal-title">Mark as lost?</h3>' +
+          '<div class="modal-person">' + avatarHtml(r) +
+            '<div class="modal-name">' + esc(r.name) + '</div>' +
+            '<div class="modal-sub">' + esc(r.ward || "") + '</div>' +
+          '</div>' +
+          '<div class="modal-sub" style="font-size:14px;color:var(--ink)">They’ll show on the lost list on every phone. You can mark them found once they’re located.</div>' +
+          '<div class="modal-actions">' +
+            '<button class="btn" data-action="confirmNo" type="button">No</button>' +
+            '<button class="btn btn-danger" data-action="confirmYes" type="button">Yes, mark lost</button>' +
+          '</div>' +
+        '</div>';
+      shell.appendChild(m);
+      return;
+    }
     if (c.kind === "task") {
       var tk = findTask(c.task);
       var sub = tk && tk.key === "shirt" && shirtText(r) ? esc(shirtText(r)) + ' &middot; ' : '';
@@ -4121,8 +4720,21 @@
 
   function render() {
     renderScreen();
+    injectWriteToast();
     updateTabBar();
     renderModal();
+  }
+
+  function injectWriteToast() {
+    if (!writeToast || view.screen === "camera") return;
+    if (view.screen === "scanned" && writeToast.id && writeToast.id !== view.registrantId) return;
+    var el = document.getElementById("screen");
+    if (!el) return;
+    var div = document.createElement("div");
+    div.className = "toast toast-error";
+    div.setAttribute("role", "alert");
+    div.textContent = writeToast.text;
+    el.insertBefore(div, el.firstChild);
   }
 
   document.addEventListener("click", function (e) {
@@ -4203,6 +4815,7 @@
   render();
   updateSyncBox();
   if (BACKEND_URL) loadFromBackend();
+  pumpWrites();
 })();
 </script>
 
