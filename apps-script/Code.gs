@@ -61,22 +61,22 @@ function rowToRegistrant_(row, map) {
     stake: g('Stake'),
     dietary: dietaryYes ? (g('Dietary Detail') || 'Dietary requirement') : null,
     checkedIn: yes(g('Checked In')),
-    checkedInAt: g('Checked In At') || null,
+    checkedInAt: asAppTime_(g('Checked In At')),
     qrPrinted: yes(g('QR Printed')),
-    qrPrintedAt: g('QR Printed At') || null,
+    qrPrintedAt: asAppTime_(g('QR Printed At')),
     lost: yes(g('Lost')),
-    lostAt: g('Lost At') || null,
+    lostAt: asAppTime_(g('Lost At')),
     needsPickup: yes(g('Airport Pickup Needed')),
-    pickupTime: g('Pickup Time') || null,
+    pickupTime: asAppTime_(g('Pickup Time')),
     team: g('Team') || null,
     bookings: bookings,
     photo: photoFor_(row, map),
     pickedUp: map['Picked Up'] ? yes(row[map['Picked Up'] - 1]) : false,
-    pickedUpAt: map['Picked Up At'] ? (row[map['Picked Up At'] - 1] || null) : null,
+    pickedUpAt: map['Picked Up At'] ? asAppTime_(row[map['Picked Up At'] - 1]) : null,
     packGiven: map['Pack Given'] ? yes(row[map['Pack Given'] - 1]) : false,
-    packGivenAt: map['Pack Given At'] ? (row[map['Pack Given At'] - 1] || null) : null,
+    packGivenAt: map['Pack Given At'] ? asAppTime_(row[map['Pack Given At'] - 1]) : null,
     shirtGiven: map['Shirt Given'] ? yes(row[map['Shirt Given'] - 1]) : false,
-    shirtGivenAt: map['Shirt Given At'] ? (row[map['Shirt Given At'] - 1] || null) : null,
+    shirtGivenAt: map['Shirt Given At'] ? asAppTime_(row[map['Shirt Given At'] - 1]) : null,
     walkin: map['Walk-in'] ? yes(row[map['Walk-in'] - 1]) : false
   };
 }
@@ -110,8 +110,59 @@ function findRowByQrId_(reg, id) {
   return -1;
 }
 
+function scriptTz_() {
+  return Session.getScriptTimeZone() || 'Australia/Brisbane';
+}
+
 function nowStamp_() {
-  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Australia/Brisbane', 'd MMM, h:mm a');
+  return Utilities.formatDate(new Date(), scriptTz_(), 'd MMM, h:mm a');
+}
+
+// Store stamps as plain text. A value like "2 Nov, 2:25 PM" is otherwise coerced
+// into a date serial, and getValues() then hands the app a Date (JSON UTC).
+function writeStamp_(sh, row, col, text) {
+  var range = sh.getRange(row, col);
+  if (!text) { range.setValue(''); return; }
+  range.setNumberFormat('@');
+  range.setValue(String(text));
+}
+
+// Brisbane-local text for the app. Time-only cells (pickup times) stay "h:mm a"
+// so the phone can still sort them. Full stamps use "d MMM, h:mm a".
+function asAppTime_(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !isNaN(v.getTime())) return formatSheetDate_(v, scriptTz_());
+  if (typeof v === 'number' && isFinite(v)) {
+    // Raw Sheets serial is a wall time, not a UTC instant.
+    var utc = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000));
+    return formatSheetDate_(utc, 'UTC');
+  }
+  return v;
+}
+
+function formatSheetDate_(date, tz) {
+  var year = Number(Utilities.formatDate(date, tz, 'yyyy'));
+  if (year < 1970) return Utilities.formatDate(date, tz, 'h:mm a');
+  return Utilities.formatDate(date, tz, 'd MMM, h:mm a');
+}
+
+// Pack + shirt are the check-in list. Set Checked In here once both are Yes so
+// two phones can split the ticks and the person still ends up checked in.
+var CHECKIN_TASK_HEADERS = ['Pack Given', 'Shirt Given'];
+
+function cellIsYes_(sh, map, row, header) {
+  if (!map[header]) return false;
+  return String(sh.getRange(row, map[header]).getValue()).trim().toLowerCase() === 'yes';
+}
+
+function syncCheckedInFromTasks_(sh, map, row) {
+  var allYes = true;
+  for (var i = 0; i < CHECKIN_TASK_HEADERS.length; i++) {
+    if (!cellIsYes_(sh, map, row, CHECKIN_TASK_HEADERS[i])) { allYes = false; break; }
+  }
+  if (!allYes || cellIsYes_(sh, map, row, 'Checked In')) return;
+  sh.getRange(row, col_(map, 'Checked In')).setValue('Yes');
+  writeStamp_(sh, row, col_(map, 'Checked In At'), nowStamp_());
 }
 
 function jsonOut_(obj) {
@@ -170,18 +221,24 @@ function doPost(e) {
       var alreadyIn = String(sh.getRange(row, col_(map, 'Checked In')).getValue()).trim().toLowerCase() === 'yes';
       if (!alreadyIn) {
         sh.getRange(row, col_(map, 'Checked In')).setValue('Yes');
-        sh.getRange(row, col_(map, 'Checked In At')).setValue(nowStamp_());
+        writeStamp_(sh, row, col_(map, 'Checked In At'), nowStamp_());
       }
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(row, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
-    if (action === 'toggleLost') {
+    // setLost carries an explicit true/false (same idea as markPickedUp) so a retry
+    // can't flip the flag. toggleLost without a value is kept for older phones.
+    if (action === 'setLost' || action === 'toggleLost') {
       var row2 = findRowByQrId_(reg, body.id);
       if (row2 === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      var isLost = String(sh.getRange(row2, col_(map, 'Lost')).getValue()).trim().toLowerCase() === 'yes';
-      var newLost = !isLost;
+      var explicit = action === 'setLost' || body.value === true || body.value === false
+        || String(body.value).toLowerCase() === 'true' || String(body.value).toLowerCase() === 'false';
+      var newLost = explicit
+        ? (body.value === true || String(body.value).toLowerCase() === 'true')
+        : String(sh.getRange(row2, col_(map, 'Lost')).getValue()).trim().toLowerCase() !== 'yes';
       sh.getRange(row2, col_(map, 'Lost')).setValue(newLost ? 'Yes' : 'No');
-      sh.getRange(row2, col_(map, 'Lost At')).setValue(newLost ? nowStamp_() : '');
+      if (newLost) writeStamp_(sh, row2, col_(map, 'Lost At'), nowStamp_());
+      else sh.getRange(row2, col_(map, 'Lost At')).setValue('');
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(row2, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
@@ -192,7 +249,7 @@ function doPost(e) {
         var r = findRowByQrId_(reg, id);
         if (r !== -1) {
           sh.getRange(r, col_(map, 'QR Printed')).setValue('Yes');
-          sh.getRange(r, col_(map, 'QR Printed At')).setValue(stamp);
+          writeStamp_(sh, r, col_(map, 'QR Printed At'), stamp);
         }
       });
       return jsonOut_({ ok: true, printed: ids });
@@ -225,7 +282,8 @@ function doPost(e) {
       if (rowP === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
       var pickedOn = body.value === true || String(body.value).toLowerCase() === 'true';
       sh.getRange(rowP, col_(map, 'Picked Up')).setValue(pickedOn ? 'Yes' : 'No');
-      sh.getRange(rowP, col_(map, 'Picked Up At')).setValue(pickedOn ? nowStamp_() : '');
+      if (pickedOn) writeStamp_(sh, rowP, col_(map, 'Picked Up At'), nowStamp_());
+      else sh.getRange(rowP, col_(map, 'Picked Up At')).setValue('');
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowP, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
@@ -246,7 +304,9 @@ function doPost(e) {
       if (rowT === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
       var on = body.value === true || String(body.value).toLowerCase() === 'true';
       sh.getRange(rowT, col_(map, cols[0])).setValue(on ? 'Yes' : 'No');
-      sh.getRange(rowT, col_(map, cols[1])).setValue(on ? nowStamp_() : '');
+      if (on) writeStamp_(sh, rowT, col_(map, cols[1]), nowStamp_());
+      else sh.getRange(rowT, col_(map, cols[1])).setValue('');
+      syncCheckedInFromTasks_(sh, map, rowT);
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowT, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
@@ -353,13 +413,19 @@ function personDetails_(regId) {
   var sh = reg.sheet;
   var lastCol = sh.getLastColumn();
   var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  var vals = sh.getRange(i, 1, 1, lastCol).getDisplayValues()[0];
+  var rawVals = sh.getRange(i, 1, 1, lastCol).getValues()[0];
+  var dispVals = sh.getRange(i, 1, 1, lastCol).getDisplayValues()[0];
   var out = [];
   for (var c = 0; c < lastCol; c++) {
     var h = String(headers[c]).trim();
     if (!h) continue;
     if (HIDE_COLUMNS.some(function (re) { return re.test(h); })) continue;
-    out.push([h, vals[c]]);
+    var shown = dispVals[c];
+    if (/ at$/i.test(h) || h === 'Pickup Time' || h === 'Registered At') {
+      var friendly = asAppTime_(rawVals[c]);
+      if (friendly) shown = String(friendly);
+    }
+    out.push([h, shown]);
   }
   return { ok: true, details: out };
 }

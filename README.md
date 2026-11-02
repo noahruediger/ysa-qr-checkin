@@ -45,7 +45,7 @@ Create a Google Sheet with two tabs, named exactly `Registrants` and `Activities
 
 1. In the Sheet, go to **Extensions → Apps Script**.
 2. Delete what's in `Code.gs` and paste in the contents of `apps-script/Code.gs` from this repo. Then add three more script files (+ next to Files > Script) named `Walkin`, `Problems` and `Staff`, and paste in the matching files. Save.
-3. Optional: set the time zone under **Project Settings** (e.g. Australia/Brisbane) so timestamps are right.
+3. Optional: set the time zone under **Project Settings** to **Australia/Brisbane** so timestamps are right. After updating these script files, use **Deploy → Manage deployments → Edit → New version**.
 
 ### 3. Deploy it as a web app
 
@@ -95,8 +95,13 @@ The box in the top right shows how the phone is talking to the Sheet:
 
 - **Offline** — not connected to a Sheet, or the last request couldn't reach it.
 - **Online** — connected, nothing sent yet.
-- **Spinner + number** — that many changes are still on their way to the Sheet. Changes are sent one at a time, so the number counts down as each one lands.
+- **Spinner + number** — that many changes are still on their way to the Sheet. Changes are sent one at a time, so the number counts down as each one lands. If a save fails, it stays on the phone and retries, and the person screen shows an error.
+- **Offline** plus a number — the Sheet can’t be reached, and that many saves are waiting on the phone.
 - **Synced** — every change has reached the Sheet.
+
+Check-in ticks (pack and shirt), lost flags, pickups and bookings are kept on the phone until the Sheet accepts them, including across a reload. Someone is marked **Checked In** in the Sheet once both pack and shirt are Yes, even if those ticks were made on two different phones. Lost is a set flag (with a confirm), not a toggle. Times are shown in Brisbane local time.
+
+The app also refreshes the people list in the background about every 25 seconds, and an unrecognised QR code is checked against the Sheet once before it’s reported as unknown. A save that hangs on the script lock can still hold up later saves until the browser gives up on that request — that’s a separate follow-up.
 
 ## Problems and staff
 

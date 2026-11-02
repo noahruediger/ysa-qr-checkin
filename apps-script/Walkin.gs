@@ -70,6 +70,9 @@ function registerWalkin_(body, reg) {
   sh.appendRow(row);
 
   var newRow = sh.getLastRow();
+  // appendRow can still coerce a stamp that looks like a date; rewrite it as text.
+  if (map['Registered At']) writeStamp_(sh, newRow, map['Registered At'], row[map['Registered At'] - 1]);
+  if (map['QR Printed At']) writeStamp_(sh, newRow, map['QR Printed At'], row[map['QR Printed At'] - 1]);
   var registrant = rowToRegistrant_(sh.getRange(newRow, 1, 1, lastCol).getValues()[0], map);
   registrant.name = String(registrant.name).trim();
   registrant.walkin = true;
