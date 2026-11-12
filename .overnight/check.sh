@@ -13,4 +13,5 @@ PY
 for f in "$tmp"/*.js; do node --check "$f"; done
 for f in apps-script/*.gs; do cp "$f" "$tmp/$(basename "$f").js"; node --check "$tmp/$(basename "$f").js"; done
 [ -f sw.js ] && node --check sw.js
+node .overnight/test-backend.js > /dev/null && echo "backend tests OK"
 echo "check.sh: all OK"

@@ -181,13 +181,16 @@ function doGet(e) {
         var limit = Math.max(1, Math.min(1000, parseInt(e.parameter.limit, 10) || 100));
         var pageRows = reg.rows.slice(offset, offset + limit);
         var page = { ok: true, total: reg.rows.length, offset: offset, registrants: pageRows.map(function (row) { return rowToRegistrant_(row, reg.map); }) };
-        if (offset === 0) { page.activities = readActivities_(); page.walkinPrintedTo = getWalkinPrintedTo_(); }
+        if (offset === 0) { page.activities = readActivities_(); page.walkinPrintedTo = getWalkinPrintedTo_(); page.rev = getRevNumber_(); }
         return jsonOut_(page);
       }
+      var rev = getRevNumber_();   // read before the rows, so a change made meanwhile still shows as new
       var registrants = reg.rows.map(function (row) { return rowToRegistrant_(row, reg.map); });
+      syncLostFromRegistrants_(registrants);   // Live.gs
       var activities = readActivities_();
-      return jsonOut_({ ok: true, registrants: registrants, activities: activities, walkinPrintedTo: getWalkinPrintedTo_() });
+      return jsonOut_({ ok: true, rev: rev, registrants: registrants, activities: activities, walkinPrintedTo: getWalkinPrintedTo_() });
     }
+    if (action === 'rev') return jsonOut_(revInfo_());   // Live.gs
     if (action === 'person') {
       return jsonOut_(personDetails_(e.parameter.id));
     }
@@ -213,144 +216,152 @@ function doPost(e) {
     try { body = JSON.parse(e.postData.contents); } catch (parseErr) {
       return jsonOut_({ ok: false, error: 'Bad JSON body: ' + parseErr });
     }
-    var action = body.action;
-    var reg = readRegistrants_();
-    var sh = reg.sheet, map = reg.map;
-
-    if (action === 'checkin') {
-      var row = findRowByQrId_(reg, body.id);
-      if (row === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      var alreadyIn = String(sh.getRange(row, col_(map, 'Checked In')).getValue()).trim().toLowerCase() === 'yes';
-      if (!alreadyIn) {
-        sh.getRange(row, col_(map, 'Checked In')).setValue('Yes');
-        writeStamp_(sh, row, col_(map, 'Checked In At'), nowStamp_());
-      }
-      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(row, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-    }
-
-    // setLost carries an explicit true/false (same idea as markPickedUp) so a retry
-    // can't flip the flag. toggleLost without a value is kept for older phones.
-    if (action === 'setLost' || action === 'toggleLost') {
-      var row2 = findRowByQrId_(reg, body.id);
-      if (row2 === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      var explicit = action === 'setLost' || body.value === true || body.value === false
-        || String(body.value).toLowerCase() === 'true' || String(body.value).toLowerCase() === 'false';
-      var newLost = explicit
-        ? (body.value === true || String(body.value).toLowerCase() === 'true')
-        : String(sh.getRange(row2, col_(map, 'Lost')).getValue()).trim().toLowerCase() !== 'yes';
-      sh.getRange(row2, col_(map, 'Lost')).setValue(newLost ? 'Yes' : 'No');
-      if (newLost) writeStamp_(sh, row2, col_(map, 'Lost At'), nowStamp_());
-      else sh.getRange(row2, col_(map, 'Lost At')).setValue('');
-      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(row2, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-    }
-
-    // One read, one write per column: printing 1,000 cards used to be 2,000 single-cell
-    // writes while holding the lock, which blocked every other phone.
-    if (action === 'markPrinted') {
-      var ids = body.ids || (body.id ? [body.id] : []);
-      var stamp = nowStamp_();
-      var wanted = {};
-      ids.forEach(function (id) { wanted[String(id).trim()] = true; });
-      var qrIdx = col_(map, 'QR ID') - 1, pCol = col_(map, 'QR Printed'), paCol = col_(map, 'QR Printed At');
-      var pVals = [], paVals = [], changed = 0;
-      reg.rows.forEach(function (row) {
-        if (wanted[String(row[qrIdx]).trim()]) {
-          pVals.push(['Yes']); paVals.push([stamp]); changed++;
-        } else {
-          pVals.push([row[pCol - 1]]); paVals.push([row[paCol - 1]]);
-        }
-      });
-      if (changed) {
-        sh.getRange(reg.firstDataRow, pCol, pVals.length, 1).setValues(pVals);
-        sh.getRange(reg.firstDataRow, paCol, paVals.length, 1).setNumberFormat('@').setValues(paVals);
-      }
-      return jsonOut_({ ok: true, printed: ids });
-    }
-
-    if (action === 'book') {
-      var activities = readActivities_();
-      var activity = activities.filter(function (a) { return a.id === body.activityId; })[0];
-      if (!activity) return jsonOut_({ ok: false, error: 'Unknown activity: ' + body.activityId });
-
-      // recompute capacity fresh, inside the lock, to avoid overbooking on simultaneous scans
-      var allRegistrants = reg.rows.map(function (row) { return rowToRegistrant_(row, map); });
-      var taken = activity.otherBookings;
-      allRegistrants.forEach(function (r) { if (r.bookings.indexOf(activity.id) !== -1) taken++; });
-      if (taken >= activity.capacity) return jsonOut_({ ok: false, error: 'full' });
-
-      var row3 = findRowByQrId_(reg, body.id);
-      if (row3 === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      var bCell = sh.getRange(row3, col_(map, 'Activity Bookings'));
-      var current = String(bCell.getValue() || '').split(',').map(function (s) { return s.trim(); }).filter(String);
-      if (current.indexOf(body.activityId) === -1) {
-        current.push(body.activityId);
-        bCell.setValue(current.join(', '));
-      }
-      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(row3, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-    }
-
-    if (action === 'markPickedUp') {
-      var rowP = findRowByQrId_(reg, body.id);
-      if (rowP === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      var pickedOn = body.value === true || String(body.value).toLowerCase() === 'true';
-      sh.getRange(rowP, col_(map, 'Picked Up')).setValue(pickedOn ? 'Yes' : 'No');
-      if (pickedOn) writeStamp_(sh, rowP, col_(map, 'Picked Up At'), nowStamp_());
-      else sh.getRange(rowP, col_(map, 'Picked Up At')).setValue('');
-      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowP, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-    }
-
-    if (action === 'uncheckin') {
-      var rowU = findRowByQrId_(reg, body.id);
-      if (rowU === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      sh.getRange(rowU, col_(map, 'Checked In')).setValue('No');
-      sh.getRange(rowU, col_(map, 'Checked In At')).setValue('');
-      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowU, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-    }
-
-    // Check-in list ticks: task "pack" -> Pack Given / Pack Given At, "shirt" -> Shirt Given / Shirt Given At
-    if (action === 'markTask') {
-      var TASK_COLUMNS = { pack: ['Pack Given', 'Pack Given At'], shirt: ['Shirt Given', 'Shirt Given At'] };
-      var cols = TASK_COLUMNS[body.task];
-      if (!cols) return jsonOut_({ ok: false, error: 'Unknown task: ' + body.task });
-      var rowT = findRowByQrId_(reg, body.id);
-      if (rowT === -1) return jsonOut_({ ok: false, error: 'Unknown ID: ' + body.id });
-      var on = body.value === true || String(body.value).toLowerCase() === 'true';
-      sh.getRange(rowT, col_(map, cols[0])).setValue(on ? 'Yes' : 'No');
-      if (on) writeStamp_(sh, rowT, col_(map, cols[1]), nowStamp_());
-      else sh.getRange(rowT, col_(map, cols[1])).setValue('');
-      syncCheckedInFromTasks_(sh, map, rowT);
-      return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowT, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-    }
-
-    // Print tab "Reset printing": everyone back to not printed, except walk-ins (their blank card is their lanyard).
-    if (action === 'resetPrinted') {
-      var qpCol = col_(map, 'QR Printed'), qaCol = col_(map, 'QR Printed At'), wkCol = map['Walk-in'];
-      if (!reg.rows.length) return jsonOut_({ ok: true, reset: 0 });
-      var resetCount = 0;
-      var printedVals = [], printedAtVals = [];
-      reg.rows.forEach(function (row) {
-        var isWalkin = wkCol && String(row[wkCol - 1]).trim().toLowerCase() === 'yes';
-        if (isWalkin) { printedVals.push([row[qpCol - 1]]); printedAtVals.push([row[qaCol - 1]]); return; }
-        if (String(row[qpCol - 1]).trim().toLowerCase() === 'yes') resetCount++;
-        printedVals.push(['No']); printedAtVals.push(['']);
-      });
-      sh.getRange(reg.firstDataRow, qpCol, printedVals.length, 1).setValues(printedVals);
-      sh.getRange(reg.firstDataRow, qaCol, printedAtVals.length, 1).setValues(printedAtVals);
-      return jsonOut_({ ok: true, reset: resetCount });
-    }
-
-    if (action === 'registerWalkin') return jsonOut_(registerWalkin_(body, reg));       // Walkin.gs
-    if (action === 'walkinPrinted') return jsonOut_(setWalkinPrintedTo_(body));         // Walkin.gs
-    if (action === 'reportProblem') return jsonOut_(reportProblem_(body));              // Problems.gs
-    if (action === 'setProblemStatus') return jsonOut_(setProblemStatus_(body));        // Problems.gs
-    if (action === 'registerStaff') return jsonOut_(registerStaff_(body));              // Staff.gs
-
-    return jsonOut_({ ok: false, error: 'Unknown action: ' + action });
+    var out = handlePost_(body);
+    if (out && out.ok && REV_ACTIONS[body.action]) bumpRev_(body, out);
+    return jsonOut_(out);
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
   } finally {
     lock.releaseLock();
   }
+}
+
+function handlePost_(body) {
+  var action = body.action;
+  // These don't touch the Registrants tab, so skip reading it.
+  if (action === 'walkinPrinted') return setWalkinPrintedTo_(body);   // Walkin.gs
+  if (action === 'reportProblem') return reportProblem_(body);        // Problems.gs
+  if (action === 'setProblemStatus') return setProblemStatus_(body);  // Problems.gs
+  if (action === 'registerStaff') return registerStaff_(body);        // Staff.gs
+
+  var reg = readRegistrants_();
+  var sh = reg.sheet, map = reg.map;
+
+  if (action === 'checkin') {
+    var row = findRowByQrId_(reg, body.id);
+    if (row === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
+    var alreadyIn = String(sh.getRange(row, col_(map, 'Checked In')).getValue()).trim().toLowerCase() === 'yes';
+    if (!alreadyIn) {
+      sh.getRange(row, col_(map, 'Checked In')).setValue('Yes');
+      writeStamp_(sh, row, col_(map, 'Checked In At'), nowStamp_());
+    }
+    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(row, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+  }
+
+  // setLost carries an explicit true/false (same idea as markPickedUp) so a retry
+  // can't flip the flag. toggleLost without a value is kept for older phones.
+  if (action === 'setLost' || action === 'toggleLost') {
+    var row2 = findRowByQrId_(reg, body.id);
+    if (row2 === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
+    var explicit = action === 'setLost' || body.value === true || body.value === false
+      || String(body.value).toLowerCase() === 'true' || String(body.value).toLowerCase() === 'false';
+    var newLost = explicit
+      ? (body.value === true || String(body.value).toLowerCase() === 'true')
+      : String(sh.getRange(row2, col_(map, 'Lost')).getValue()).trim().toLowerCase() !== 'yes';
+    sh.getRange(row2, col_(map, 'Lost')).setValue(newLost ? 'Yes' : 'No');
+    if (newLost) writeStamp_(sh, row2, col_(map, 'Lost At'), nowStamp_());
+    else sh.getRange(row2, col_(map, 'Lost At')).setValue('');
+    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(row2, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+  }
+
+  // One read, one write per column: printing 1,000 cards used to be 2,000 single-cell
+  // writes while holding the lock, which blocked every other phone.
+  if (action === 'markPrinted') {
+    var ids = body.ids || (body.id ? [body.id] : []);
+    var stamp = nowStamp_();
+    var wanted = {};
+    ids.forEach(function (id) { wanted[String(id).trim()] = true; });
+    var qrIdx = col_(map, 'QR ID') - 1, pCol = col_(map, 'QR Printed'), paCol = col_(map, 'QR Printed At');
+    var pVals = [], paVals = [], changed = 0;
+    reg.rows.forEach(function (row) {
+      if (wanted[String(row[qrIdx]).trim()]) {
+        pVals.push(['Yes']); paVals.push([stamp]); changed++;
+      } else {
+        pVals.push([row[pCol - 1]]); paVals.push([row[paCol - 1]]);
+      }
+    });
+    if (changed) {
+      sh.getRange(reg.firstDataRow, pCol, pVals.length, 1).setValues(pVals);
+      sh.getRange(reg.firstDataRow, paCol, paVals.length, 1).setNumberFormat('@').setValues(paVals);
+    }
+    return ({ ok: true, printed: ids });
+  }
+
+  if (action === 'book') {
+    var activities = readActivities_();
+    var activity = activities.filter(function (a) { return a.id === body.activityId; })[0];
+    if (!activity) return ({ ok: false, error: 'Unknown activity: ' + body.activityId });
+
+    // recompute capacity fresh, inside the lock, to avoid overbooking on simultaneous scans
+    var allRegistrants = reg.rows.map(function (row) { return rowToRegistrant_(row, map); });
+    var taken = activity.otherBookings;
+    allRegistrants.forEach(function (r) { if (r.bookings.indexOf(activity.id) !== -1) taken++; });
+    if (taken >= activity.capacity) return ({ ok: false, error: 'full' });
+
+    var row3 = findRowByQrId_(reg, body.id);
+    if (row3 === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
+    var bCell = sh.getRange(row3, col_(map, 'Activity Bookings'));
+    var current = String(bCell.getValue() || '').split(',').map(function (s) { return s.trim(); }).filter(String);
+    if (current.indexOf(body.activityId) === -1) {
+      current.push(body.activityId);
+      bCell.setValue(current.join(', '));
+    }
+    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(row3, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+  }
+
+  if (action === 'markPickedUp') {
+    var rowP = findRowByQrId_(reg, body.id);
+    if (rowP === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
+    var pickedOn = body.value === true || String(body.value).toLowerCase() === 'true';
+    sh.getRange(rowP, col_(map, 'Picked Up')).setValue(pickedOn ? 'Yes' : 'No');
+    if (pickedOn) writeStamp_(sh, rowP, col_(map, 'Picked Up At'), nowStamp_());
+    else sh.getRange(rowP, col_(map, 'Picked Up At')).setValue('');
+    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowP, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+  }
+
+  if (action === 'uncheckin') {
+    var rowU = findRowByQrId_(reg, body.id);
+    if (rowU === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
+    sh.getRange(rowU, col_(map, 'Checked In')).setValue('No');
+    sh.getRange(rowU, col_(map, 'Checked In At')).setValue('');
+    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowU, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+  }
+
+  // Check-in list ticks: task "pack" -> Pack Given / Pack Given At, "shirt" -> Shirt Given / Shirt Given At
+  if (action === 'markTask') {
+    var TASK_COLUMNS = { pack: ['Pack Given', 'Pack Given At'], shirt: ['Shirt Given', 'Shirt Given At'] };
+    var cols = TASK_COLUMNS[body.task];
+    if (!cols) return ({ ok: false, error: 'Unknown task: ' + body.task });
+    var rowT = findRowByQrId_(reg, body.id);
+    if (rowT === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
+    var on = body.value === true || String(body.value).toLowerCase() === 'true';
+    sh.getRange(rowT, col_(map, cols[0])).setValue(on ? 'Yes' : 'No');
+    if (on) writeStamp_(sh, rowT, col_(map, cols[1]), nowStamp_());
+    else sh.getRange(rowT, col_(map, cols[1])).setValue('');
+    syncCheckedInFromTasks_(sh, map, rowT);
+    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowT, 1, 1, sh.getLastColumn()).getValues()[0], map) });
+  }
+
+  // Print tab "Reset printing": everyone back to not printed, except walk-ins (their blank card is their lanyard).
+  if (action === 'resetPrinted') {
+    var qpCol = col_(map, 'QR Printed'), qaCol = col_(map, 'QR Printed At'), wkCol = map['Walk-in'];
+    if (!reg.rows.length) return ({ ok: true, reset: 0 });
+    var resetCount = 0;
+    var printedVals = [], printedAtVals = [];
+    reg.rows.forEach(function (row) {
+      var isWalkin = wkCol && String(row[wkCol - 1]).trim().toLowerCase() === 'yes';
+      if (isWalkin) { printedVals.push([row[qpCol - 1]]); printedAtVals.push([row[qaCol - 1]]); return; }
+      if (String(row[qpCol - 1]).trim().toLowerCase() === 'yes') resetCount++;
+      printedVals.push(['No']); printedAtVals.push(['']);
+    });
+    sh.getRange(reg.firstDataRow, qpCol, printedVals.length, 1).setValues(printedVals);
+    sh.getRange(reg.firstDataRow, qaCol, printedAtVals.length, 1).setValues(printedAtVals);
+    return ({ ok: true, reset: resetCount });
+  }
+
+  if (action === 'registerWalkin') return registerWalkin_(body, reg);       // Walkin.gs
+
+  return { ok: false, error: 'Unknown action: ' + action };
 }
 
 // ===================== Photo / pickup / full-details additions =====================

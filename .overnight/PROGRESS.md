@@ -16,7 +16,10 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
    commit "overnight: take lock" and push before doing any work. Refresh LOCK on every commit.
    Commit + push **at least every 15 minutes** (small commits) so the next run can pick up if usage runs out.
 3. Take the first unchecked item below, do it, tick it `[x]`, add a line to the Log, commit, push. Repeat.
-4. Commit with `.overnight/commit.sh "message"` (runs checks, refreshes LOCK, pushes).
+4. Browser smoke test: `python3 .overnight/smoke.py /tmp/smoke` (headless Chrome at /usr/bin/google-chrome against
+   `.overnight/mock-server.js`, which runs the real .gs files on an in-memory Sheet). Add scenarios via
+   `SMOKE_EXTRA=file.py` (see smoke-lost.py). Look at the screenshots. Backend unit tests: `node .overnight/test-backend.js`.
+5. Commit with `.overnight/commit.sh "message"` (runs checks, refreshes LOCK, pushes).
    Check your work: `node --check` on the JS pulled out of index.html (see `.overnight/check.sh`), and
    test the Apps Script logic in node with the mock in `.overnight/` where practical.
 5. Keep the code style: plain ES5-ish JS in one `index.html`, no build step, no frameworks.
@@ -31,7 +34,7 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 - [x] B1 `doPost`: move `lock.waitLock` inside try (use `tryLock(20000)`), return `{ok:false,error:'busy'}` JSON instead of an HTML error page; client treats `busy` as retryable.
 - [x] B2 `markPrinted`: build a QR ID → row index once, write the two columns in one `setValues` each (like `resetPrinted`). No per-cell writes.
 - [x] B3 `ensureColumns_` only when columns are actually missing; don't write on every `list` (cache the check in `CacheService` for 10 min).
-- [ ] B4 Revision counter: every write bumps a number in `PropertiesService` (script props) + CacheService. New cheap `doGet action=rev` returns `{rev, lost:[ids+name+at+by], serverTime}`. App polls `rev` every ~8s and only pulls the full list when rev changed (or every 2 min as a safety net). Fixes the "every phone pulls 1,300 rows every 25s" problem and powers the lost alert.
+- [x] B4 Revision counter: every write bumps a number in `PropertiesService` (script props) + CacheService. New cheap `doGet action=rev` returns `{rev, lost:[ids+name+at+by], serverTime}`. App polls `rev` every ~8s and only pulls the full list when rev changed (or every 2 min as a safety net). Fixes the "every phone pulls 1,300 rows every 25s" problem and powers the lost alert.
 - [ ] B5 Audit trail: client sends `by` (staff name) + `deviceId` on every POST. Server writes `Checked In By`, `Lost By`, `Pack Given By`, `Shirt Given By`, `Picked Up By` columns (auto-added) and appends to a `Log` tab: Time, Staff, Device, Action, QR ID, Name, Detail. Batch-friendly (appendRow is fine).
 - [ ] B6 Optional access code: if Script Property `ACCESS_CODE` is set, every GET/POST must carry `key` equal to it, else `{ok:false,error:'locked'}`. App: Settings field for the code, stored in localStorage, included in the setup QR. `resetPrinted` additionally requires role Admin from the Staff tab (deviceId lookup). Document in README.
 - [ ] B7 Allergies + medical: registrant JSON gets `allergy` (detail text or null when Allergies != Yes) and `medical` (true if Medical / Disability Notes non-empty). Header lookup must tolerate both test names and real-form names (see B9 aliases).
@@ -46,11 +49,11 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 - [ ] F0b Walk-in sign-ups survive a reload: keep pending `registerWalkin` in localStorage (photo downscaled to ≤ 400px JPEG so it fits), retried by the durable queue.
 
 ### Features
-- [ ] F1 Sound + vibration on scan. Web Audio (unlock AudioContext on the scan-button tap), `navigator.vibrate` where supported (not iPhone). Distinct: success (two rising beeps), already checked in (two flat mid beeps + double buzz), LOST person scanned (urgent triple), unknown code (low buzz, long vibrate), walk-in blank card (single soft beep). Settings toggle "Scan sounds" (default on).
+- [x] F1 Sound + vibration on scan. Web Audio (unlock AudioContext on the scan-button tap), `navigator.vibrate` where supported (not iPhone). Distinct: success (two rising beeps), already checked in (two flat mid beeps + double buzz), LOST person scanned (urgent triple), unknown code (low buzz, long vibrate), walk-in blank card (single soft beep). Settings toggle "Scan sounds" (default on).
 - [ ] F2 "Already checked in at 9:42 by Ella" warning on the scanned screen (amber banner + the warning sound), using Checked In At / Checked In By. Also show "by X" on lost/pickup/pack/shirt times where known.
 - [ ] F3 Installable + offline: `manifest.webmanifest`, icons (generated PNGs 192/512 + apple-touch-icon), `sw.js` (cache app shell + vendored libs; network-first for index.html with cache fallback; never cache the Apps Script API). Vendor qrious + jsQR into `vendor/` (npm) instead of CDN. Register SW in index.html. Add "Install app" hint in Settings.
 - [ ] F4 Search by phone or email at the desk: People-tab search box also hits B8 when the term looks like a phone/email (debounced), shows results under "From the Sheet".
-- [ ] F5 Lost-person alert on every phone: from the B4 `rev` poll, when a new lost ID appears show a red banner at the top of every screen ("LOST: Jane Doe — Team Blue · tap to view"), with sound/vibration once; dismiss per person; clears when found.
+- [x] F5 Lost-person alert on every phone: from the B4 `rev` poll, when a new lost ID appears show a red banner at the top of every screen ("LOST: Jane Doe — Team Blue · tap to view"), with sound/vibration once; dismiss per person; clears when found.
 - [ ] F6 Laptop view (≥ 1024px wide): left sidebar nav instead of bottom tab bar, content uses the full width (people list as a multi-column grid/table, person screen two-column, dashboard cards in a grid). Phones unchanged.
 - [ ] F7 Print screen on laptop: settings panel and a live one-A4-page preview side by side, preview re-renders as options change (uses the same card renderer as printing, scaled to fit). Settings panel stays open. Phones keep the current flow.
 - [ ] F8 Allergy / medical badge on the scanned screen (red "ALLERGY: bee sting" pill, "Medical notes — see Details"), in the people list, and an optional ALLERGY badge on printed cards (preset toggle).
@@ -63,3 +66,4 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 ## Log
 - 2026-11-12 12:35 UTC (first session) — Plan written. Hourly scheduled runs created 11:40pm–4:40am Brisbane. Noah said not to ask anything.
 - 12:45 UTC — B1 (tryLock → 'busy' JSON), B2 (batch markPrinted), B3 (column check cached 10 min) done; client fetch timeout 30/45 s added so a hung request can't block the queue. B12: TEST sheet set to Australia/Brisbane + en_AU via Sheets API.
+- 13:10 UTC — B4 (Live.gs: rev counter, cheap `rev` poll every 8 s, full refresh only on change + every 2 min, onEdit bumps rev), F5 (red LOST banner on every phone, dismiss per report, beeps once), F1 (Web Audio beeps + vibration, Settings toggle + Test). doPost now routes through handlePost_() so REV_ACTIONS bump in one place. Added gas-mock.js, mock-server.js, smoke.py test harness. Added apiUrl() + ACCESS_KEY var (used fully in B6).

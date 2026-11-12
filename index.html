@@ -285,6 +285,29 @@
   .boot-error { color: var(--critical); font-size: 13px; max-width: 300px; overflow-wrap: anywhere; }
   .boot-actions { display: flex; gap: 10px; }
 
+  /* ---------- Lost-person alert (every phone) ---------- */
+  .alert-stack {
+    position: absolute; top: 40px; left: 10px; right: 10px; z-index: 26;
+    display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+  }
+  .alert-stack[hidden] { display: none; }
+  .alert-lost {
+    pointer-events: auto; display: flex; align-items: stretch;
+    background: var(--critical); color: #fff; border-radius: var(--radius-m);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25); overflow: hidden;
+    animation: alertIn 0.25s ease-out;
+  }
+  @keyframes alertIn { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .alert-lost-main {
+    flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 1px;
+    align-items: center; text-align: left; padding: 8px 10px; background: none; border: 0; color: inherit; cursor: pointer; font: inherit;
+  }
+  .alert-lost-tag { grid-row: span 2; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; background: rgba(255,255,255,0.2); padding: 3px 6px; border-radius: 4px; }
+  .alert-lost-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .alert-lost-meta { font-size: 11.5px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .alert-lost-x { flex: none; width: 40px; background: rgba(0,0,0,0.12); border: 0; color: #fff; font-size: 20px; cursor: pointer; }
+  .alert-lost-more { pointer-events: auto; align-self: flex-end; background: var(--critical); color: #fff; border: 0; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+
   .phone-content {
     flex: 1;
     min-height: 0;
@@ -1167,6 +1190,7 @@
     <div class="app-shell" aria-label="QR Check-In app">
       <div class="loading-bar" id="loadingBar"></div>
       <div class="sync-box is-offline" id="syncBox" role="status" aria-live="polite"><span id="syncBoxText">Offline</span></div>
+      <div class="alert-stack" id="alertStack" hidden aria-live="assertive"></div>
       <div class="phone-content" id="screen"></div>
       <div class="boot-screen" id="bootScreen" hidden role="status" aria-live="polite">
         <span class="boot-eyebrow">Brisbane YSA Convention</span>
@@ -1223,6 +1247,8 @@
 
   // ---------- live backend wiring ----------
   var BACKEND_URL = "";
+  var ACCESS_KEY = "";
+  try { ACCESS_KEY = localStorage.getItem("qrCheckinAccessKey") || ""; } catch (e) { /* none */ }
   try { BACKEND_URL = localStorage.getItem("qrCheckinBackendUrl") || ""; } catch (e) { /* private window etc — fine, just no persistence */ }
   var backendBusy = false;
   var settingsUrlDraft = BACKEND_URL;
@@ -1318,6 +1344,76 @@
       if (err && err.name === "AbortError") throw new Error("the Sheet took too long to answer");
       throw err;
     });
+  }
+
+  // Builds a GET URL for the Sheet script, adding the access code if this phone has one (Settings).
+  function apiUrl(params) {
+    var q = [];
+    Object.keys(params || {}).forEach(function (k) {
+      if (params[k] != null && params[k] !== "") q.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
+    });
+    if (ACCESS_KEY) q.push("key=" + encodeURIComponent(ACCESS_KEY));
+    return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + q.join("&");
+  }
+
+  // ---------- scan sounds + vibration ----------
+  // Web Audio beeps (no sound files to download) and navigator.vibrate where the phone allows it.
+  // iPhones don't let websites vibrate, so they get sound only. The first tap on the scan button
+  // unlocks audio (browsers block sound until the user has touched the page).
+  var SOUND_STORE = "qrCheckinScanSounds";
+  var scanSoundsOn = true;
+  try { scanSoundsOn = localStorage.getItem(SOUND_STORE) !== "off"; } catch (e) { /* default on */ }
+  var audioCtx = null;
+  function unlockAudio() {
+    try {
+      if (!audioCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      // A silent blip: iOS only unlocks after something actually plays during the tap.
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      g.gain.value = 0; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.01);
+    } catch (e) { /* no audio on this device */ }
+  }
+  document.addEventListener("pointerdown", function () { if (!audioCtx) unlockAudio(); }, { passive: true });
+  function tone(freq, start, dur, type, vol) {
+    var t0 = audioCtx.currentTime + start;
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.35, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  var FEEDBACK = {
+    // kind: [ [freq, startSec, durSec, wave, volume], ... ], vibration pattern (ms)
+    success:   { tones: [[880, 0, 0.11], [1320, 0.12, 0.16]], buzz: [60] },
+    already:   { tones: [[660, 0, 0.13, "triangle", 0.45], [660, 0.2, 0.13, "triangle", 0.45]], buzz: [90, 80, 90] },
+    lost:      { tones: [[1046, 0, 0.12, "square", 0.25], [784, 0.14, 0.12, "square", 0.25], [1046, 0.28, 0.12, "square", 0.25], [784, 0.42, 0.18, "square", 0.25]], buzz: [200, 80, 200, 80, 200] },
+    lostAlert: { tones: [[988, 0, 0.14, "square", 0.22], [740, 0.16, 0.2, "square", 0.22]], buzz: [150, 80, 150] },
+    unknown:   { tones: [[196, 0, 0.32, "sawtooth", 0.25]], buzz: [400] },
+    walkin:    { tones: [[740, 0, 0.14]], buzz: [40] }
+  };
+  function scanFeedback(kind) {
+    if (!scanSoundsOn) return;
+    var f = FEEDBACK[kind];
+    if (!f) return;
+    try { if (navigator.vibrate) navigator.vibrate(f.buzz); } catch (e) { /* not allowed */ }
+    try {
+      if (!audioCtx) return;
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      f.tones.forEach(function (t) { tone(t[0], t[1], t[2], t[3], t[4]); });
+    } catch (e) { /* no audio */ }
+  }
+  function setScanSounds(on) {
+    scanSoundsOn = !!on;
+    try { localStorage.setItem(SOUND_STORE, on ? "on" : "off"); } catch (e) { /* fine */ }
+    if (on) { unlockAudio(); scanFeedback("success"); }
+    render();
   }
 
   function apiGet(action) {
@@ -2558,17 +2654,24 @@
     var errEl = document.getElementById("manualError");
     if (errEl) errEl.textContent = "No registrant found with ID " + label + ".";
   }
+  // Which sound a successful lookup makes: lost beats already-in beats a normal hello.
+  function scanKindFor(r) {
+    if (r.lost) return "lost";
+    if (r.checkedIn) return "already";
+    return "success";
+  }
   function considerScan(text, fromCamera) {
     var raw = String(text || "").trim();
     var norm = raw.toUpperCase();
     var r = byId(state.registrants, raw) || byId(state.registrants, norm);
-    if (r) { stopCamera(); scan(r.id); return; }
+    if (r) { scanFeedback(scanKindFor(r)); stopCamera(); scan(r.id); return; }
     if (fromCamera && scanMissAt[norm] && Date.now() - scanMissAt[norm] < 8000) {
       cameraRaf = requestAnimationFrame(tickCamera);
       return;
     }
     var finishMiss = function () {
-      if (isWalkinCode(norm)) { stopCamera(); openWalkin(norm); return; }
+      if (isWalkinCode(norm)) { scanFeedback("walkin"); stopCamera(); openWalkin(norm); return; }
+      scanFeedback("unknown");
       if (fromCamera) scanMissAt[norm] = Date.now();
       showScanMiss(fromCamera ? raw : norm, fromCamera);
     };
@@ -2589,7 +2692,7 @@
       scanLookupBusy = false;
       if (fromCamera && view.screen !== "camera") return;
       var again = byId(state.registrants, raw) || byId(state.registrants, norm);
-      if (again) { stopCamera(); scan(again.id); return; }
+      if (again) { scanFeedback(scanKindFor(again)); stopCamera(); scan(again.id); return; }
       finishMiss();
     }, function () {
       scanLookupBusy = false;
@@ -2626,6 +2729,7 @@
   }
 
   function openCamera(mode) {
+    unlockAudio();
     stopCamera();
     view.cameraMode = mode === "setup" ? "setup" : null;
     view.screen = "camera";
@@ -3247,7 +3351,12 @@
 
   // Light refresh everywhere so lost flags, check-ins and new people show up
   // without a full reload. Skips the loading bar. Unsent local ticks are reapplied.
-  var PEOPLE_REFRESH_MS = 25000;
+  // With a Sheet script that has Live.gs, phones ask "has anything changed?" every 8 s (cheap,
+  // no Sheet read) and only download everyone when it has, plus a safety refresh every 2 min.
+  // An older script without Live.gs falls back to a full refresh every 25 s.
+  var PEOPLE_REFRESH_LEGACY_MS = 25000;
+  var PEOPLE_REFRESH_SAFETY_MS = 120000;
+  var PEOPLE_REFRESH_MS = PEOPLE_REFRESH_LEGACY_MS;
   var lastPeopleRefresh = Date.now();
   var refreshPromise = null;
   function quietRefresh() {
@@ -3258,6 +3367,7 @@
     refreshPromise = trackedFetch(url).then(function (data) {
       refreshPromise = null;
       if (!data || data.ok === false || !data.registrants) return data;
+      if (typeof data.rev === "number") liveRev = data.rev;
       var before = peopleSig(state.registrants);
       applyPeopleSnapshot(data);
       if (peopleSig(state.registrants) !== before && !viewBlocksRefreshRender()) renderKeepingScroll();
@@ -3273,6 +3383,97 @@
     if (Date.now() - lastPeopleRefresh < PEOPLE_REFRESH_MS) return;
     quietRefresh();
   }, 5000);
+
+  // ---------- live changes + lost-person alerts (Live.gs) ----------
+  var REV_POLL_MS = 8000;
+  var liveRev = null;          // the Sheet's change counter as of our last full list
+  var revSupported = null;     // null = not asked yet, false = older script without Live.gs
+  var revBusy = false;
+  var lastRevPoll = 0;
+  var lostAlerts = [];         // [{ id, name, team, at, by }] from the Sheet, newest info
+  var DISMISSED_LOST_STORE = "qrCheckinDismissedLost";
+  var dismissedLost = {};      // id -> the "at" stamp that was dismissed (a new lost report shows again)
+  try { dismissedLost = JSON.parse(localStorage.getItem(DISMISSED_LOST_STORE) || "{}") || {}; } catch (e) { dismissedLost = {}; }
+  var alertedLost = {};        // id + at that already beeped on this phone
+
+  function pollRev() {
+    if (!BACKEND_URL || document.hidden || revBusy || revSupported === false) return;
+    revBusy = true;
+    lastRevPoll = Date.now();
+    trackedFetch(apiUrl({ action: "rev" })).then(function (d) {
+      revBusy = false;
+      if (!d) return;
+      if (d.ok === false) {
+        if (/unknown action/i.test(String(d.error || ""))) { revSupported = false; PEOPLE_REFRESH_MS = PEOPLE_REFRESH_LEGACY_MS; }
+        return;
+      }
+      if (revSupported !== true) { revSupported = true; PEOPLE_REFRESH_MS = PEOPLE_REFRESH_SAFETY_MS; }
+      applyLostAlerts(d.lost || []);
+      if (typeof d.rev === "number") {
+        if (liveRev === null) liveRev = d.rev;
+        else if (d.rev !== liveRev && !backendBusy) quietRefresh().catch(function () {});
+      }
+    }, function () { revBusy = false; });
+  }
+  setInterval(function () {
+    if (Date.now() - lastRevPoll >= REV_POLL_MS) pollRev();
+  }, 2000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) pollRev(); });
+
+  function activeLostAlerts() {
+    return lostAlerts.filter(function (a) { return dismissedLost[a.id] !== (a.at || "-"); });
+  }
+  function applyLostAlerts(list) {
+    lostAlerts = list.slice();
+    var fresh = false;
+    lostAlerts.forEach(function (a) {
+      var key = a.id + "|" + (a.at || "");
+      if (dismissedLost[a.id] === (a.at || "-")) return;
+      if (!alertedLost[key]) { alertedLost[key] = true; fresh = true; }
+      // Show it on this phone straight away, even before the next full list arrives.
+      var r = byId(state.registrants, a.id);
+      if (r && !r.lost && !hasPendingAction("setLost", a.id)) { r.lost = true; if (a.at) r.lostAt = a.at; if (a.by) r.lostBy = a.by; }
+    });
+    // Anyone the Sheet no longer lists as lost has been found.
+    Object.keys(dismissedLost).forEach(function (id) {
+      if (!lostAlerts.some(function (a) { return a.id === id; })) delete dismissedLost[id];
+    });
+    saveDismissedLost();
+    if (fresh) scanFeedback("lostAlert");
+    renderAlerts();
+  }
+  function dismissLostAlert(id) {
+    var a = lostAlerts.filter(function (x) { return x.id === id; })[0];
+    dismissedLost[id] = a ? (a.at || "-") : "-";
+    saveDismissedLost();
+    renderAlerts();
+  }
+  function saveDismissedLost() {
+    try { localStorage.setItem(DISMISSED_LOST_STORE, JSON.stringify(dismissedLost)); } catch (e) { /* fine */ }
+  }
+  function renderAlerts() {
+    var box = document.getElementById("alertStack");
+    if (!box) return;
+    var list = activeLostAlerts();
+    if (!list.length) { box.innerHTML = ""; box.hidden = true; box.removeAttribute("data-sig"); return; }
+    box.hidden = false;
+    var shown = list.slice(0, 3);
+    var html = shown.map(function (a) {
+      var r = byId(state.registrants, a.id);
+      var team = a.team || (r && r.team) || "";
+      var when = a.at ? " &middot; since " + esc(String(a.at).replace(/^\d+ \w+, /, "")) : "";
+      return '<div class="alert-lost" role="alert">' +
+        '<button class="alert-lost-main" data-action="scan" data-id="' + esc(a.id) + '" type="button">' +
+          '<span class="alert-lost-tag">LOST</span>' +
+          '<span class="alert-lost-name">' + esc(a.name || a.id) + '</span>' +
+          '<span class="alert-lost-meta">' + (team ? esc(team) : esc(a.id)) + when + (a.by ? ' &middot; reported by ' + esc(a.by) : '') + ' &middot; tap to view</span>' +
+        '</button>' +
+        '<button class="alert-lost-x" data-action="dismissLost" data-id="' + esc(a.id) + '" type="button" aria-label="Hide this alert">&times;</button>' +
+      '</div>';
+    }).join("") + (list.length > 3 ? '<button class="alert-lost-more" data-action="openLostList" type="button">+ ' + (list.length - 3) + ' more lost</button>' : "");
+    // Only touch the DOM when something changed, so the slide-in doesn't replay every poll.
+    if (box.getAttribute("data-sig") !== html) { box.innerHTML = html; box.setAttribute("data-sig", html); }
+  }
 
   function setPersonTab(tab) {
     view.personTab = tab;
@@ -4138,6 +4339,16 @@
       caption.textContent = "Point this app at your Apps Script backend to work off the live Sheet.";
       el.innerHTML =
         '<h2 class="screen-title">Settings</h2>' +
+        '<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">' +
+          '<div style="display:flex;flex-direction:column;gap:2px;min-width:0">' +
+            '<div style="font-size:13.5px;font-weight:600">Scan sounds &amp; vibration</div>' +
+            '<div style="font-size:12px;color:var(--muted)">Different beeps for checked in, already in, lost and unknown codes. iPhones play sound only (no vibration) and stay quiet on silent.</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex:none">' +
+            '<button class="btn btn-sm" data-action="testSound" type="button">Test</button>' +
+            '<button class="btn btn-sm' + (scanSoundsOn ? ' btn-primary' : '') + '" data-action="toggleSounds" type="button" aria-pressed="' + (scanSoundsOn ? 'true' : 'false') + '">' + (scanSoundsOn ? 'On' : 'Off') + '</button>' +
+          '</div>' +
+        '</div>' +
         '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
           '<div style="font-size:13.5px;font-weight:600">Something not working?</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
@@ -4758,6 +4969,10 @@
     if (t) {
       var action = t.getAttribute("data-action");
       if (action === "scan") scan(t.getAttribute("data-id"));
+      else if (action === "dismissLost") dismissLostAlert(t.getAttribute("data-id"));
+      else if (action === "toggleSounds") setScanSounds(!scanSoundsOn);
+      else if (action === "testSound") { unlockAudio(); var seq = ["success", "already", "lost", "unknown"]; seq.forEach(function (k, i) { setTimeout(function () { var was = scanSoundsOn; scanSoundsOn = true; scanFeedback(k); scanSoundsOn = was; }, i * 900); }); }
+      else if (action === "openLostList") { stopCamera(); view.screen = "tab"; view.activeTab = "dashboard"; render(); }
       else if (action === "selectTab") selectTab(t.getAttribute("data-tab"));
       else if (action === "openCamera") openCamera();
       else if (action === "cancelCamera") cancelCamera();
