@@ -2,9 +2,11 @@
 
 A phone-first check-in app for the Brisbane YSA Convention. Staff scan the QR code on a lanyard to check people in, flag lost people, tick off airport pickups, and print lanyards. Everything reads and writes live to a Google Sheet.
 
-- `index.html` — the app (one file, runs in any phone browser)
+- `index.html` — the app (one file, runs in any phone or laptop browser)
+- `sw.js`, `manifest.webmanifest`, `icons/`, `vendor/` — make it installable and let it open with no signal (see **Offline and installing**)
 - `apps-script/Code.gs` — the backend that connects the app to the Google Sheet
-- `apps-script/Walkin.gs`, `Problems.gs`, `Staff.gs` — walk-in sign-ups, problem reports and the staff access list (add them next to Code.gs)
+- `apps-script/Walkin.gs`, `Problems.gs`, `Staff.gs`, `Live.gs`, `Log.gs`, `Import.gs`, `Admin.gs` — walk-in sign-ups, problem reports, the staff access list, live updates and lost alerts, the audit log, importing from the registration form, and one-off admin tools (add them all next to Code.gs)
+- `CONVENTION-CHECKUP.md` — the to-do list before the convention
 
 Without a backend connected, the app runs on built-in demo data.
 
@@ -44,8 +46,8 @@ Create a Google Sheet with two tabs, named exactly `Registrants` and `Activities
 ### 2. Add the Apps Script
 
 1. In the Sheet, go to **Extensions → Apps Script**.
-2. Delete what's in `Code.gs` and paste in the contents of `apps-script/Code.gs` from this repo. Then add three more script files (+ next to Files > Script) named `Walkin`, `Problems` and `Staff`, and paste in the matching files. Save.
-3. Optional: set the time zone under **Project Settings** to **Australia/Brisbane** so timestamps are right. After updating these script files, use **Deploy → Manage deployments → Edit → New version**.
+2. Delete what's in `Code.gs` and paste in the contents of `apps-script/Code.gs` from this repo. Then add the other script files (+ next to Files > Script) named `Walkin`, `Problems`, `Staff`, `Live`, `Log`, `Import` and `Admin`, and paste in the matching files. Save.
+3. Set the time zone under **Project Settings** to **Australia/Brisbane** so timestamps are right (and the Sheet itself under File → Settings). After updating these script files, use **Deploy → Manage deployments → Edit → New version**.
 
 ### 3. Deploy it as a web app
 
@@ -63,6 +65,29 @@ After editing the script later, use **Deploy → Manage deployments → Edit →
 
 The URL is saved on that phone only. To set up another phone quickly, use **Settings → Share QR code** on a connected phone: step 1 opens the app, step 2 is a setup QR they scan from **Settings → Scan setup QR code** on their phone.
 
+### Importing from the registration form
+
+The real registrations live in the form's responses sheet, which belongs to the convention admin account. Don't point the app at that file. Keep a separate check-in Sheet you own and copy people across with `Import.gs`:
+
+1. In the check-in Sheet's Apps Script: **Project Settings → Script Properties → Add**: `SOURCE_SHEET_ID` = the ID from the responses sheet's URL (between `/d/` and `/edit`). If the tab isn't called `DO NOT EDIT!!! LIVE DATA`, also add `SOURCE_TAB`.
+2. Run `syncFromForm` once from the editor (approve permissions). Everyone appears on the `Registrants` tab with a QR ID (`YSA-0001`, `YSA-0002`, …) and the form questions turned into the app's columns (Ward, Stake, Dietary, Allergies, Airport pickup, Photo …).
+3. Run `installSyncTrigger` once. From then on it re-imports every 5 minutes, so late registrations and edits reach every phone by themselves. (`removeSyncTrigger` stops it.)
+
+The import matches people by email, never deletes anyone, and never touches the columns the app writes (Checked In, Lost, Pack/Shirt, Printed, Team, Picked Up …), so it's always safe to run again. A person keeps their QR ID for good. Your account only needs view access to the responses sheet.
+
+The script also understands the form's own question headers directly (e.g. "Ward/ Branch:"), so a Sheet that still has them works too.
+
+### Access code (optional, recommended)
+
+Anyone with the /exec link can otherwise read the Sheet through it. To lock it: **Project Settings → Script Properties → Add** `ACCESS_CODE` = any code (e.g. `ysa2026`). Then on each phone, enter the code under **Settings → Access code** and tap **Connect**. The setup QR from **Settings → Share QR code** includes the code, so scanning it sets up both.
+
+Only phones listed as **Admin** on the `Staff` tab can use **Reset printing** (once at least one Admin exists).
+
+### One-off tidy-ups (Admin.gs)
+
+- `fixStampColumns`: turns old timestamps saved as numbers (e.g. `46279.45903`) into readable text.
+- `buildDashboard`: rebuilds the `Dashboard` tab with live counts (registered, checked in, lost, printed, pack/shirt, pickups, dietary, allergies, walk-ins, and checked in per team). It finds columns by header name, so column order doesn't matter.
+
 ## Photos
 
 The app shows a profile photo for each person from the `Photo URL` column, or from the registration form's photo upload column (Google Drive links). If there's no photo, it shows initials.
@@ -73,7 +98,7 @@ The app shows a profile photo for each person from the `Photo URL` column, or fr
 
 ## Keep the /exec URL private
 
-Anyone with the /exec URL can read the Sheet's data through it, including names, phone numbers and emergency contacts. Don't commit it to this repo or post it publicly. Only share it with staff who need it. If it leaks, create a new deployment and archive the old one.
+Unless you set an access code (see **Access code** above), anyone with the /exec URL can read the Sheet's data through it, including names, phone numbers and emergency contacts. Don't commit it to this repo or post it publicly. Only share it with staff who need it. If it leaks, create a new deployment and archive the old one.
 
 ## Printing lanyards
 
@@ -84,6 +109,25 @@ The **Fold-over with photo · 2 per page** layout prints each person as a 164 ×
 ## Walk-ins
 
 For people who sign up on the day. In **Other → Walk-ins → Print blank cards**, print blank walk-in cards (codes `YSA-A0001` onward, with an empty name box). Scanning a card that isn't linked to anyone opens a sign-up screen: type their name, take their photo, and the card is linked to them. Walk-ins are added as new rows on the Registrants tab (`Walk-in` = Yes) and their photos are saved to a Drive folder called "YSA Walk-in Photos". **Other → Walk-ins** lists them all, with how many blank cards have been printed, signed up and are still blank. The printed count is shared through an `App Settings` tab (created automatically), so every phone shows the same number.
+
+## On the day
+
+- **Scan sounds:** each scan beeps differently: checked in (two rising beeps), already checked in (two flat beeps), **lost person** (urgent alarm), unknown code (low buzz), blank walk-in card (one beep). Android phones also vibrate; iPhones don't allow websites to vibrate, so they beep only (and stay quiet with the silent switch on). Turn it off or test it in **Settings → Scan sounds**.
+- **Already checked in:** scanning a lanyard that's already been used shows "Already checked in at 9:42 AM by Ella", to catch shared lanyards.
+- **Allergies and medical notes:** a red Allergy pill (with what it is) and a Medical notes pill show on the person's screen and in the People list. Cards can also print an ALLERGY badge (Print → layout options → Allergy pill).
+- **Lost-person alert:** when anyone marks someone lost, a red banner appears on every phone within about 10 seconds, with a beep. Tap it to open the person; × hides it on that phone.
+- **Desk search:** someone without their lanyard can be found by typing their phone number (any format, +61 or 04…) or email on the People tab. Those are looked up in the Sheet, not kept on every phone.
+- **Who did what:** every change is logged on a `Log` tab (time, staff name, phone, action, person), and the Registrants tab gets `Checked In By`, `Lost By`, `Pack Given By`, `Shirt Given By` and `Picked Up By` columns. The names come from what each phone typed under Settings.
+
+## Laptop view
+
+On a laptop or big screen the app fills the window: a sidebar on the left, people as a grid of cards, the person page in two columns, and a dashboard with checked-in-by-team bars. On the **Print** tab the layout options stay open next to a live preview of one A4 page, which redraws as you change sizes, toggles or the selected people. What you see is what prints. Tablets get the phone layout using the whole screen.
+
+## Offline and installing
+
+- **Install:** iPhone: Safari → Share → **Add to Home Screen**. Android: Chrome → ⋮ → **Install app**. Laptop Chrome: the install icon in the address bar. **Settings → Install on this phone** shows the right steps and whether the offline copy is ready.
+- **No signal:** after the app has loaded once, it opens with no internet. It uses the last list of people saved on that phone (the status box says when it's from). Scans, ticks, lost flags and walk-ins still work and are sent when the signal comes back.
+- The QR libraries are in `vendor/` (not a CDN) for this reason. The Google Sheet is never cached: live data always comes from the Sheet. If you change `sw.js`, bump `VERSION` at the top so phones refresh their copy.
 
 ## First load
 
@@ -101,7 +145,7 @@ The box in the top right shows how the phone is talking to the Sheet:
 
 Check-in ticks (pack and shirt), lost flags, pickups and bookings are kept on the phone until the Sheet accepts them, including across a reload. Someone is marked **Checked In** in the Sheet once both pack and shirt are Yes, even if those ticks were made on two different phones. Lost is a set flag (with a confirm), not a toggle. Times are shown in Brisbane local time.
 
-The app also refreshes the people list in the background about every 25 seconds, and an unrecognised QR code is checked against the Sheet once before it’s reported as unknown. If the Sheet is busy or slow, a save is cut off after about 45 seconds and retried, so one stuck save can’t hold up the rest.
+Each open app asks the Sheet "has anything changed?" every 8 seconds (a tiny request that doesn't read the Sheet), and only downloads everyone again when something has. It also does a full refresh every 2 minutes as a safety net. (With an older Sheet script that doesn't have `Live.gs`, it falls back to a full refresh every 25 seconds.) An unrecognised QR code is checked against the Sheet once before it's reported as unknown. If the Sheet is busy or slow, a save is cut off after about 45 seconds and retried, so one stuck save can’t hold up the rest.
 
 ## Problems and staff
 

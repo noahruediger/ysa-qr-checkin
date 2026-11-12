@@ -1,31 +1,46 @@
 # Convention checkup
 
-Things that can't be done from code. Work through these before the convention. Overnight runs add to
-this list as they find more.
+Things that can't be done from code. Work through them before the convention, roughly in this order.
+(Made overnight on 12–13 Nov alongside PR #2. The README explains each feature in more detail.)
 
-## Before you merge the overnight PR
-- [ ] Read the PR summary, then merge `overnight-fixes` into `main` (GitHub Pages updates in a minute or two).
-- [ ] On your phone, open https://noahruediger.github.io/ysa-qr-checkin/ and force-refresh once, so the new offline cache installs.
+## 1. Merge the overnight work
+- [ ] Read the PR #2 summary, then merge `overnight-fixes` into `main`. GitHub Pages updates the live app in a minute or two.
+- [ ] On each phone, open https://noahruediger.github.io/ysa-qr-checkin/ once with internet. That installs the offline copy (Settings → Install on this phone shows "Offline copy ready").
 
-## Apps Script (in the check-in Sheet → Extensions → Apps Script)
-- [ ] Paste the new versions of `Code.gs`, `Walkin.gs`, `Problems.gs`, `Staff.gs`, and add any new files from `apps-script/` (e.g. `Import.gs`).
+## 2. Update the Apps Script (test Sheet first, then the real check-in Sheet)
+- [ ] Extensions → Apps Script: replace `Code.gs`, `Walkin.gs`, `Problems.gs`, `Staff.gs` with the new versions from `apps-script/`.
+- [ ] Add 4 new script files with these exact names and paste them in: `Live`, `Log`, `Import`, `Admin`.
 - [ ] Project Settings → time zone **Australia/Brisbane**.
-- [ ] Deploy → Manage deployments → Edit → **New version** (keeps the same /exec URL).
-- [ ] Run `fixStampColumns` once and `buildDashboard` once from the editor (approve permissions).
+- [ ] Deploy → Manage deployments → Edit → **New version** (the /exec URL stays the same).
+- [ ] Run `fixStampColumns` once (turns old number timestamps into readable text).
+- [ ] The test Sheet's Dashboard tab is already fixed (done overnight). On the real check-in Sheet, run `buildDashboard` once.
+- [ ] Optional but recommended: Script Properties → add `ACCESS_CODE`, then enter it on each phone (Settings → Access code → Connect), or reshare the setup QR, which now includes the code.
 
-## The real registration data
-- [ ] You only have **view** access to "Brisbane YSA Convention 2026-2027 (Responses)" (owner: brisysaconadmin@gmail.com). Don't point the app at that file. Make a separate check-in Sheet you own, then use `Import.gs` to copy people across (see README → Importing from the form).
-- [ ] Ask the sheet owner to set that sheet's time zone to Brisbane (it's currently Port Moresby, US locale; same clock, but dates like 16/04/2006 read as US).
-- [ ] After the first import, check a few people: QR IDs assigned, ward/stake/dietary/allergy/pickup columns filled in correctly.
-- [ ] Decide who is Admin, and set an `ACCESS_CODE` in Script Properties if you want the link locked (README → Access code).
+## 3. Real registration data
+- [ ] Make a new Google Sheet you own for check-in (e.g. "YSA Check-In LIVE"), with the Apps Script set up as in step 2 and deployed as a web app.
+- [ ] Script Properties: `SOURCE_SHEET_ID` = `17tJUBu32rcJZ9RcO72lDTrxGozCN7kWTpXx2tR6sT-k` (the form responses sheet; you only have view access, which is enough).
+- [ ] Run `syncFromForm` once, then `installSyncTrigger` once (re-imports every 5 minutes).
+- [ ] Spot-check 5–10 people on the Registrants tab: QR ID, name, ward/stake, dietary, allergy, pickup time, photo link.
+- [ ] Fill in the **Team** column (the form doesn't ask for it).
+- [ ] Photos: the real photos are in the admin account's Drive. Make sure your account can at least view that upload folder, run `testDriveAccess` once, then open a few people in the app to check their photos show. Some are iPhone HEIC files: the app shows Drive's JPEG version of those.
+- [ ] Ask the responses sheet's owner (brisysaconadmin@gmail.com) to set its time zone to Brisbane and locale to Australia (it's Port Moresby / US now, so dates like 16/04/2006 can be misread).
+- [ ] Point every phone at the new Sheet's /exec URL (Settings → Share QR code from your phone makes this quick).
 
-## Test sheet (QR_CheckIn_TEST_Sheet)
-- [ ] Activity bookings in the test data are way over capacity (e.g. Talent Show 190 booked / 12 spots). That's seeded data, not the app. Activity booking currently has no button in the app; decide whether you still want it before the convention.
-- [ ] 70 test people are "Checked In" without pack/shirt ticks (left over from before the checklist). Fine for testing; the real sheet starts clean.
+## 4. Decisions only you can make
+- [ ] **Activity booking**: the code is still there, but there's no button for it in the app anymore and no way to cancel a booking. The test data is also way over capacity (e.g. Talent Show 190 booked for 12 spots). Do you still want booking at the convention? If yes, it needs a booking screen. If no, it can be removed.
+- [ ] Who is **Admin** (only Admin phones can Reset printing once an Admin exists).
+- [ ] Whether lanyards should print the new **ALLERGY** badge (Print → layout options → Allergy pill; off by default).
 
-## On the day: test with real phones
-- [ ] One iPhone + one Android: scan a code and check you hear the sounds (iPhone: sound only, no vibration; make sure the silent switch is off).
-- [ ] Turn Wi-Fi off, reload the app, and check it still opens (after it has loaded once online).
-- [ ] Mark someone lost on phone A and check the red banner appears on phone B within ~10 seconds.
-- [ ] Print one sheet of real lanyards and check the size matches 82 × 130 mm.
-- [ ] Laptop: open the app full-screen and check the sidebar layout and the print preview.
+## 5. Test with real phones (30 minutes, worth it)
+- [ ] One iPhone + one Android: scan codes and listen for the different sounds (Settings → Scan sounds → Test). iPhone: silent switch off; it beeps but can't vibrate.
+- [ ] Scan someone twice: the second scan should say "Already checked in at … by …".
+- [ ] Phone A: mark someone lost. Phone B should show the red LOST banner within ~10 seconds.
+- [ ] People tab: type a phone number like `0412 345 678` or an email and check the person comes up.
+- [ ] Airplane mode on, close and reopen the app: it should open with the saved list and say Offline. Tick something, turn airplane mode off, and check it reaches the Sheet.
+- [ ] Laptop: open the app full-screen and check the sidebar, the dashboard team bars and the Print tab preview.
+- [ ] Print one real sheet of lanyards and measure a card (should be 82 × 130 mm). Compare it to the on-screen preview.
+- [ ] Check the new `Log` tab fills in as people use the app.
+
+## Notes from the overnight run
+- Everything was tested on a copy of the backend running in node (`.overnight/test-backend.js`) and in headless Chrome against it (`.overnight/smoke.py`, `.overnight/offline-test.py`), not on real phones or the live Google deployment.
+- The `.overnight/` folder only holds the work plan and test tools. It can be deleted after merging if you like.

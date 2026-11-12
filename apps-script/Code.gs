@@ -539,7 +539,8 @@ function photoDataUri_(regId, full) {
     if (!id) return { ok: false, error: 'Not a Drive photo' };
     var file = DriveApp.getFileById(id);
     var blob = null;
-    if (full && /^image\//i.test(file.getMimeType()) && file.getSize() <= 6000000) blob = file.getBlob();
+    // HEIC (iPhone) photos can't be shown by most browsers, so those always go as Drive's JPEG thumbnail.
+    if (full && /^image\/(jpe?g|png|gif|webp)$/i.test(file.getMimeType()) && file.getSize() <= 6000000) blob = file.getBlob();
     if (!blob) blob = file.getThumbnail() || file.getBlob();
     var bytes = blob.getBytes();
     if (bytes.length > 6000000) return { ok: false, error: 'Photo too large' };

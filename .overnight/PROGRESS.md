@@ -59,9 +59,9 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 - [x] F8 Allergy / medical badge on the scanned screen (red "ALLERGY: bee sting" pill, "Medical notes — see Details"), in the people list, and an optional ALLERGY badge on printed cards (preset toggle).
 
 ### Wrap-up
-- [ ] W1 README updated (new tabs/columns/properties, access code, offline/install, import from form, laptop view).
-- [ ] W2 CONVENTION-CHECKUP.md complete and accurate.
-- [ ] W3 Final check: `.overnight/check.sh` passes, PR description written, LOCK = `done`.
+- [x] W1 README updated (new tabs/columns/properties, access code, offline/install, import from form, laptop view).
+- [x] W2 CONVENTION-CHECKUP.md complete and accurate.
+- [x] W3 Final check: `.overnight/check.sh` passes, PR description written, LOCK = `done`.
 
 ## Log
 - 2026-11-12 12:35 UTC (first session) — Plan written. Hourly scheduled runs created 11:40pm–4:40am Brisbane. Noah said not to ask anything.
@@ -76,3 +76,4 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 - 14:50 UTC — F7: print card/page CSS moved out of @media print (print-only bits remain inside), renderPrintCards(ids, st, target) draws page 1 into #printPreview scaled to fit; on ≥980px the Print tab is two columns (options always open + list | sticky A4 preview), number inputs update the preview on every keystroke (input event), everything else re-renders on change. Shows selected people, or a sample page if none ticked. F8: allergy pill on scanned screen (done earlier), 'Allergy' pill in People list, optional 'Allergy pill' print toggle (showAllergy, off by default) on cards incl. fold-over.
 - 15:00 UTC — B9: Import.gs syncFromForm() (SOURCE_SHEET_ID/SOURCE_TAB props; maps real form headers via HEADER_ALIASES; photo upload → Photo URL; key = email or timestamp+name; new people get YSA-#### from nextQrNumber prop; only form columns rewritten, app columns untouched; idempotent; bumps rev). installSyncTrigger()/removeSyncTrigger() (5 min). Tested in node against the real header list.
 - 15:10 UTC — B10/B11: Admin.gs fixStampColumns() + buildDashboard() (header-based INDEX/MATCH formulas + team table). Dashboard formulas verified live on the TEST sheet (written via Sheets API: 1000 registered / 102 in / 370 allergy — correct). NOTE for later runs: a Sheets 'clear' call was blocked by the permission classifier as an external write, so don't write to the Sheets again; the test sheet is done. Added isDate_() (cross-context-safe) used by asAppTime_.
+- 15:25 UTC — W1 README rewritten for all new features/setup; W2 CONVENTION-CHECKUP.md complete; W3 all checks pass (14 backend tests, 4 browser scenarios at phone+laptop, offline reload). HEIC photos now go out as Drive JPEG thumbnails. Everything done in the first session; scheduled runs cancelled. LOCK = done.
