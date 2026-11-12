@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>QR Check-In</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2b6e7a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="QR Check-In">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>html,body{margin:0;padding:0}</style>
 </head>
 <body>
@@ -1191,8 +1199,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- Kept in this repo (vendor/) rather than a CDN so the app opens on bad Wi-Fi; see vendor/README.md -->
+<script src="vendor/qrious.min.js"></script>
+<script src="vendor/jsQR.js"></script>
 
 <div class="page">
 
@@ -2252,10 +2261,12 @@
       }
       state.registrants = data.registrants.map(mapServerRegistrant);
       state.activities = data.activities || [];
+      if (typeof data.rev === "number") liveRev = data.rev;
       mergeLocalWalkins();
       applySheetWalkinPrinted(data);
       reconcileLegacyTicks();
       lastPeopleRefresh = Date.now();
+      savePeopleCache(data, true);
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
       bootProgress(data.registrants.length, data.registrants.length);
@@ -2266,9 +2277,47 @@
     }).catch(function (err) {
       backendBusy = false;
       markReachable(false);
+      if (startFromPeopleCache()) return;
       setConnStatus("Couldn't reach that URL — " + err, false);
       bootFail("Couldn’t reach the Sheet. Check the internet connection and try again.");
     });
+  }
+
+  // ---------- last-known people list, for opening the app with no signal ----------
+  // The newest full list is kept on the phone. If the Sheet can't be reached when the app opens,
+  // it starts from that copy (scans, ticks and lost flags still work and are sent when the
+  // signal comes back) instead of stopping at the loading screen.
+  var PEOPLE_CACHE_STORE = "qrCheckinPeopleCache";
+  var lastPeopleCacheSave = 0;
+  var peopleCacheAt = null;   // when the copy in use was saved, if we started from it
+  function savePeopleCache(data, force) {
+    if (!data || !data.registrants) return;
+    if (!force && Date.now() - lastPeopleCacheSave < 60000) return;
+    lastPeopleCacheSave = Date.now();
+    try {
+      localStorage.setItem(PEOPLE_CACHE_STORE, JSON.stringify({
+        url: BACKEND_URL, savedAt: Date.now(),
+        data: { registrants: data.registrants, activities: data.activities || [], walkinPrintedTo: data.walkinPrintedTo, rev: data.rev }
+      }));
+    } catch (e) { /* phone storage full: just no offline copy */ }
+  }
+  function startFromPeopleCache() {
+    var c = null;
+    try { c = JSON.parse(localStorage.getItem(PEOPLE_CACHE_STORE) || "null"); } catch (e) { c = null; }
+    if (!c || c.url !== BACKEND_URL || !c.data || !c.data.registrants || !c.data.registrants.length) return false;
+    state.registrants = c.data.registrants.map(mapServerRegistrant);
+    state.activities = c.data.activities || [];
+    mergeLocalWalkins();
+    applySheetWalkinPrinted(c.data);
+    peopleCacheAt = c.savedAt;
+    lastPeopleRefresh = 0;   // try the Sheet again on the next refresh tick
+    var when = new Date(c.savedAt);
+    var hh = when.getHours(), mm = when.getMinutes();
+    var label = (hh % 12 || 12) + ":" + (mm < 10 ? "0" : "") + mm + (hh < 12 ? " AM" : " PM");
+    setConnStatus("Offline — using the list saved on this phone at " + label + ". Changes are kept and sent when the signal is back.", false);
+    render();
+    hideBoot();
+    return true;
   }
 
   function connectBackend() {
@@ -3470,6 +3519,8 @@
       if (typeof data.rev === "number") liveRev = data.rev;
       var before = peopleSig(state.registrants);
       applyPeopleSnapshot(data);
+      savePeopleCache(data);
+      if (peopleCacheAt) { peopleCacheAt = null; setConnStatus("Back online — live off the Sheet", true); }
       if (peopleSig(state.registrants) !== before && !viewBlocksRefreshRender()) renderKeepingScroll();
       return data;
     }, function (err) {
@@ -4477,6 +4528,7 @@
             '<button class="btn btn-sm' + (scanSoundsOn ? ' btn-primary' : '') + '" data-action="toggleSounds" type="button" aria-pressed="' + (scanSoundsOn ? 'true' : 'false') + '">' + (scanSoundsOn ? 'On' : 'Off') + '</button>' +
           '</div>' +
         '</div>' +
+        installCardHtml() +
         '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
           '<div style="font-size:13.5px;font-weight:600">Something not working?</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
@@ -5109,6 +5161,7 @@
       if (action === "scan") scan(t.getAttribute("data-id"));
       else if (action === "dismissLost") dismissLostAlert(t.getAttribute("data-id"));
       else if (action === "toggleSounds") setScanSounds(!scanSoundsOn);
+      else if (action === "installApp") { if (deferredInstall) { deferredInstall.prompt(); deferredInstall.userChoice.then(function () { deferredInstall = null; render(); }); } }
       else if (action === "testSound") { unlockAudio(); var seq = ["success", "already", "lost", "unknown"]; seq.forEach(function (k, i) { setTimeout(function () { var was = scanSoundsOn; scanSoundsOn = true; scanFeedback(k); scanSoundsOn = was; }, i * 900); }); }
       else if (action === "openLostList") { stopCamera(); view.screen = "tab"; view.activeTab = "dashboard"; render(); }
       else if (action === "selectTab") selectTab(t.getAttribute("data-tab"));
@@ -5185,6 +5238,44 @@
   updateSyncBox();
   if (BACKEND_URL) loadFromBackend();
   pumpWrites();
+
+  // ---------- installable app + offline copy (sw.js) ----------
+  var deferredInstall = null;
+  var offlineReady = false;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    if (view.screen === "tab" && view.activeTab === "settings") render();
+  });
+  window.addEventListener("appinstalled", function () { deferredInstall = null; if (view.activeTab === "settings") render(); });
+  function isInstalled() {
+    try { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; } catch (e) { return false; }
+  }
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        return navigator.serviceWorker.ready;
+      }).then(function () {
+        offlineReady = true;
+        if (view.screen === "tab" && view.activeTab === "settings") render();
+      }).catch(function () { /* offline copy not available; the app still works online */ });
+    });
+  }
+  function installCardHtml() {
+    var ua = navigator.userAgent || "";
+    var ios = /iPhone|iPad|iPod/i.test(ua);
+    var how;
+    if (isInstalled()) how = '<div class="screen-sub" style="margin:0">&#10003; Installed. Open it from your home screen.</div>';
+    else if (deferredInstall) how = '<button class="btn btn-primary btn-block" data-action="installApp" type="button">Install app</button>';
+    else if (ios) how = '<div class="screen-sub" style="margin:0">In <strong>Safari</strong>: tap the Share button, then <strong>Add to Home Screen</strong>.</div>';
+    else how = '<div class="screen-sub" style="margin:0">In <strong>Chrome</strong>: tap the &#8942; menu, then <strong>Install app</strong> (or <strong>Add to Home screen</strong>).</div>';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px">' +
+      '<div style="font-size:13.5px;font-weight:600">Install on this phone</div>' +
+      '<div class="screen-sub" style="margin:0">Opens full-screen like a normal app, and still opens with bad Wi-Fi or no signal. Changes made offline are saved on the phone and sent when it reconnects.</div>' +
+      how +
+      '<div class="screen-sub mono" style="margin:0;font-size:11px">' + (offlineReady ? '&#10003; Offline copy ready on this phone' : 'Offline copy: not ready yet (needs one load over the internet)') + '</div>' +
+    '</div>';
+  }
 })();
 </script>
 

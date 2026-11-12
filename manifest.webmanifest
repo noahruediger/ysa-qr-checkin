@@ -1,0 +1,16 @@
+{
+  "name": "YSA QR Check-In",
+  "short_name": "QR Check-In",
+  "description": "Check people in at the Brisbane YSA Convention by scanning their lanyard QR code.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f2ea",
+  "theme_color": "#2b6e7a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
