@@ -195,9 +195,11 @@ function writeStamp_(sh, row, col, text) {
 
 // Brisbane-local text for the app. Time-only cells (pickup times) stay "h:mm a"
 // so the phone can still sort them. Full stamps use "d MMM, h:mm a".
+function isDate_(v) { return Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime()); }
+
 function asAppTime_(v) {
   if (v == null || v === '') return null;
-  if (v instanceof Date && !isNaN(v.getTime())) return formatSheetDate_(v, scriptTz_());
+  if (isDate_(v)) return formatSheetDate_(v, scriptTz_());
   if (typeof v === 'number' && isFinite(v)) {
     // Raw Sheets serial is a wall time, not a UTC instant.
     var utc = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000));

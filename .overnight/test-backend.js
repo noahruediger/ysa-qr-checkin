@@ -107,6 +107,15 @@ t('import from the real form layout', () => {
   // search works on imported phone numbers
   assert.ok(g.get({ action: 'search', q: '0412 000 004' }).results.some(x => x.id === 'YSA-0003'));
 });
+t('admin: fixStampColumns + buildDashboard run', () => {
+  const g = fresh(); const sh = g._ss.getSheetByName('Registrants');
+  const head = sh._data()[0]; const c = head.indexOf('Checked In At');
+  sh._data()[1][c] = 46279.45903; sh._data()[2][c] = new Date(Date.UTC(2026, 10, 12, 0, 30));
+  const msg = g.fixStampColumns(); assert.ok(/Fixed 2/.test(msg), msg);
+  assert.strictEqual(sh._data()[2][c], '12 Nov, 10:30 AM');
+  assert.ok(/^\d+ \w+, \d+:\d\d (AM|PM)$/.test(sh._data()[1][c]), sh._data()[1][c]);
+  assert.strictEqual(g.buildDashboard(), 'Dashboard rebuilt');
+});
 t('unknown action', () => { const g = fresh(); assert.strictEqual(g.post({ action: 'nope' }).ok, false); });
 
 if (require.main === module) {
