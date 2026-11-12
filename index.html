@@ -285,28 +285,38 @@
   .boot-error { color: var(--critical); font-size: 13px; max-width: 300px; overflow-wrap: anywhere; }
   .boot-actions { display: flex; gap: 10px; }
 
+  /* ---------- "Already checked in" warning on a scan ---------- */
+  .already-warn {
+    display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-m);
+    background: var(--warning-tint); color: var(--warning); border: 1.5px solid var(--warning); font-size: 13px;
+  }
+  .already-warn strong { font-size: 14.5px; }
+  .already-warn span { color: var(--ink-soft); }
+  .pill-strong { font-weight: 700; }
+  .pill-btn { border: 0; cursor: pointer; font: inherit; }
+
   /* ---------- Lost-person alert (every phone) ---------- */
   .alert-stack {
     position: absolute; top: 40px; left: 10px; right: 10px; z-index: 26;
     display: flex; flex-direction: column; gap: 6px; pointer-events: none;
   }
   .alert-stack[hidden] { display: none; }
-  .alert-lost {
+  .lostbar {
     pointer-events: auto; display: flex; align-items: stretch;
     background: var(--critical); color: #fff; border-radius: var(--radius-m);
     box-shadow: 0 6px 18px rgba(0,0,0,0.25); overflow: hidden;
     animation: alertIn 0.25s ease-out;
   }
   @keyframes alertIn { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
-  .alert-lost-main {
+  .lostbar-main {
     flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 1px;
     align-items: center; text-align: left; padding: 8px 10px; background: none; border: 0; color: inherit; cursor: pointer; font: inherit;
   }
-  .alert-lost-tag { grid-row: span 2; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; background: rgba(255,255,255,0.2); padding: 3px 6px; border-radius: 4px; }
-  .alert-lost-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .alert-lost-meta { font-size: 11.5px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .alert-lost-x { flex: none; width: 40px; background: rgba(0,0,0,0.12); border: 0; color: #fff; font-size: 20px; cursor: pointer; }
-  .alert-lost-more { pointer-events: auto; align-self: flex-end; background: var(--critical); color: #fff; border: 0; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+  .lostbar-tag { grid-row: span 2; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; background: rgba(255,255,255,0.2); padding: 3px 6px; border-radius: 4px; }
+  .lostbar-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lostbar-meta { font-size: 11.5px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lostbar-x { flex: none; width: 40px; background: rgba(0,0,0,0.12); border: 0; color: #fff; font-size: 20px; cursor: pointer; }
+  .lostbar-more { pointer-events: auto; align-self: flex-end; background: var(--critical); color: #fff; border: 0; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
 
   .phone-content {
     flex: 1;
@@ -480,7 +490,7 @@
   .lookup-item.has-avatar { flex-direction: row; align-items: center; gap: 10px; }
   .lookup-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .lost-row-info.has-avatar { flex-direction: row; align-items: center; gap: 10px; }
-  .id-row-main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+  .id-row-main { display: flex; align-items: center; gap: 12px; min-width: min(220px, 100%); flex: 1 1 220px; }
   .id-row { flex-wrap: wrap; }
   .avatar-lg { width: 56px; height: 56px; font-size: 20px; }
 
@@ -1427,7 +1437,9 @@
   // works straight from a locally-hosted page with no server-side CORS setup
   // (Apps Script web apps can't answer a CORS preflight OPTIONS request).
   function rawPost(payload) {
-    return trackedFetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
+    var body = payload;
+    if (ACCESS_KEY) { body = {}; Object.keys(payload).forEach(function (k) { body[k] = payload[k]; }); body.key = ACCESS_KEY; }
+    return trackedFetch(BACKEND_URL, { method: "POST", body: JSON.stringify(body) });
   }
 
   // Changes go to the Sheet one at a time, in the order they were made. The Sheet script
@@ -1679,6 +1691,9 @@
     );
   }
   function apiPost(payload) {
+    // Who did it, stamped when the change is made (so a retry later still names the right person).
+    if (payload.by == null && staffName) payload.by = staffName;
+    if (payload.deviceId == null && deviceId) payload.deviceId = deviceId;
     return new Promise(function (resolve, reject) {
       var seq = writeSeq++;
       if (DURABLE_ACTIONS[payload.action]) {
@@ -1881,21 +1896,25 @@
       r[t.field] = !!p.value;
       if (p.value) { var taskAt = friendlyTime(p.at); if (taskAt) r[t.atField] = taskAt; }
       else r[t.atField] = null;
+      r[t.field + "By"] = p.value ? (p.by || null) : null;
     } else if (p.action === "markPickedUp") {
       if (p.id !== r.id) return;
       r.pickedUp = !!p.value;
       if (p.value) { var pickAt = friendlyTime(p.at); if (pickAt) r.pickedUpAt = pickAt; }
       else r.pickedUpAt = null;
+      r.pickedUpBy = p.value ? (p.by || null) : null;
     } else if (p.action === "setLost") {
       if (p.id !== r.id) return;
       r.lost = !!p.value;
       if (p.value) { var lostAt = friendlyTime(p.at); if (lostAt) r.lostAt = lostAt; }
       else r.lostAt = null;
+      r.lostBy = p.value ? (p.by || null) : null;
     } else if (p.action === "checkin") {
       if (p.id !== r.id) return;
       r.checkedIn = true;
       var inAt = friendlyTime(p.at);
       if (inAt) r.checkedInAt = inAt;
+      if (p.by) r.checkedInBy = p.by;
     } else if (p.action === "uncheckin") {
       if (p.id !== r.id) return;
       r.checkedIn = false;
@@ -1953,6 +1972,13 @@
       shirtGiven: r.shirtGiven === undefined ? !!(localTasks[r.id] && localTasks[r.id].shirt) : !!r.shirtGiven,
       shirtGivenAt: r.shirtGiven === undefined ? friendlyTime(localTasks[r.id] && localTasks[r.id].shirt) : friendlyTime(r.shirtGivenAt),
       walkin: !!r.walkin || isWalkinCode(r.id),
+      checkedInBy: r.checkedInBy || null,
+      lostBy: r.lostBy || null,
+      packGivenBy: r.packGivenBy || null,
+      shirtGivenBy: r.shirtGivenBy || null,
+      pickedUpBy: r.pickedUpBy || null,
+      allergy: r.allergy || null,
+      medical: !!r.medical,
       fromServer: true
     };
     return overlayPending(mapped);
@@ -2664,7 +2690,7 @@
     var raw = String(text || "").trim();
     var norm = raw.toUpperCase();
     var r = byId(state.registrants, raw) || byId(state.registrants, norm);
-    if (r) { scanFeedback(scanKindFor(r)); stopCamera(); scan(r.id); return; }
+    if (r) { scanFeedback(scanKindFor(r)); stopCamera(); scan(r.id, true); return; }
     if (fromCamera && scanMissAt[norm] && Date.now() - scanMissAt[norm] < 8000) {
       cameraRaf = requestAnimationFrame(tickCamera);
       return;
@@ -2692,7 +2718,7 @@
       scanLookupBusy = false;
       if (fromCamera && view.screen !== "camera") return;
       var again = byId(state.registrants, raw) || byId(state.registrants, norm);
-      if (again) { scanFeedback(scanKindFor(again)); stopCamera(); scan(again.id); return; }
+      if (again) { scanFeedback(scanKindFor(again)); stopCamera(); scan(again.id, true); return; }
       finishMiss();
     }, function () {
       scanLookupBusy = false;
@@ -3027,10 +3053,13 @@
     window.print();
   }
 
-  function scan(registrantId) {
+  // fromScanner: opened by scanning a lanyard (not from a list), so warn if they're already in.
+  function scan(registrantId, fromScanner) {
     stopCamera();
     view.screen = "scanned";
     view.registrantId = registrantId;
+    var who = byId(state.registrants, registrantId);
+    view.scanWarn = fromScanner && who && who.checkedIn ? registrantId : null;
     view.personTab = "checkin";
     render();
   }
@@ -3077,6 +3106,7 @@
     var prevAt = r.lostAt;
     r.lost = !!lost;
     r.lostAt = lost ? nowTime() : null;
+    r.lostBy = lost ? (staffName || null) : null;
     lastUpdatedRegistrant = registrantId;
     render();
     if (!BACKEND_URL) return;
@@ -3142,8 +3172,10 @@
     var r = byId(state.registrants, c.id);
     var t = findTask(c.task);
     if (!r || !t) { render(); return; }
+    var wasAllDone = CHECKIN_TASKS.every(function (x) { return r[x.field]; });
     r[t.field] = c.next;
     r[t.atField] = c.next ? nowTime() : null;
+    r[t.field + "By"] = c.next ? (staffName || null) : null;
     if (!localTasks[r.id]) localTasks[r.id] = {};
     if (c.next) localTasks[r.id][t.key] = r[t.atField]; else delete localTasks[r.id][t.key];
     saveLocalTasks();
@@ -3151,8 +3183,11 @@
     // Someone counts as checked in once every item on the list is done.
     var allDone = CHECKIN_TASKS.every(function (x) { return r[x.field]; });
     var checkInChange = null;
-    if (allDone && !r.checkedIn) { r.checkedIn = true; r.checkedInAt = nowTime(); checkInChange = "checkin"; }
-    else if (!allDone && r.checkedIn) { r.checkedIn = false; r.checkedInAt = null; checkInChange = "uncheckin"; }
+    if (allDone && !r.checkedIn) { r.checkedIn = true; r.checkedInAt = nowTime(); r.checkedInBy = staffName || null; checkInChange = "checkin"; }
+    // Unticking only undoes a check-in that the list itself made (everything was ticked a moment
+    // ago). Someone checked in another way (by hand in the Sheet, or before the list existed)
+    // stays checked in while staff tick their pack and shirt.
+    else if (!allDone && wasAllDone && r.checkedIn) { r.checkedIn = false; r.checkedInAt = null; r.checkedInBy = null; checkInChange = "uncheckin"; }
 
     lastUpdatedRegistrant = r.id;
     render();
@@ -3196,6 +3231,7 @@
     if (!r) { render(); return; }
     r.pickedUp = c.next;
     r.pickedUpAt = c.next ? nowTime() : null;
+    r.pickedUpBy = c.next ? (staffName || null) : null;
     if (c.next) localPicked[r.id] = r.pickedUpAt; else delete localPicked[r.id];
     saveLocalPicked();
     lastUpdatedRegistrant = r.id;
@@ -3462,15 +3498,15 @@
       var r = byId(state.registrants, a.id);
       var team = a.team || (r && r.team) || "";
       var when = a.at ? " &middot; since " + esc(String(a.at).replace(/^\d+ \w+, /, "")) : "";
-      return '<div class="alert-lost" role="alert">' +
-        '<button class="alert-lost-main" data-action="scan" data-id="' + esc(a.id) + '" type="button">' +
-          '<span class="alert-lost-tag">LOST</span>' +
-          '<span class="alert-lost-name">' + esc(a.name || a.id) + '</span>' +
-          '<span class="alert-lost-meta">' + (team ? esc(team) : esc(a.id)) + when + (a.by ? ' &middot; reported by ' + esc(a.by) : '') + ' &middot; tap to view</span>' +
+      return '<div class="lostbar" role="alert">' +
+        '<button class="lostbar-main" data-action="scan" data-id="' + esc(a.id) + '" type="button">' +
+          '<span class="lostbar-tag">LOST</span>' +
+          '<span class="lostbar-name">' + esc(a.name || a.id) + '</span>' +
+          '<span class="lostbar-meta">' + (team ? esc(team) : esc(a.id)) + when + (a.by ? ' &middot; reported by ' + esc(a.by) : '') + ' &middot; tap to view</span>' +
         '</button>' +
-        '<button class="alert-lost-x" data-action="dismissLost" data-id="' + esc(a.id) + '" type="button" aria-label="Hide this alert">&times;</button>' +
+        '<button class="lostbar-x" data-action="dismissLost" data-id="' + esc(a.id) + '" type="button" aria-label="Hide this alert">&times;</button>' +
       '</div>';
-    }).join("") + (list.length > 3 ? '<button class="alert-lost-more" data-action="openLostList" type="button">+ ' + (list.length - 3) + ' more lost</button>' : "");
+    }).join("") + (list.length > 3 ? '<button class="lostbar-more" data-action="openLostList" type="button">+ ' + (list.length - 3) + ' more lost</button>' : "");
     // Only touch the DOM when something changed, so the slide-in doesn't replay every poll.
     if (box.getAttribute("data-sig") !== html) { box.innerHTML = html; box.setAttribute("data-sig", html); }
   }
@@ -4495,9 +4531,17 @@
         ? '<span class="pill pill-success"><span class="pill-dot"></span>Checked in ' + esc(r.checkedInAt) + '</span>'
         : '<span class="pill pill-neutral"><span class="pill-dot"></span>Not checked in</span>';
 
+      // Scanned a lanyard that's already been used: could be a re-scan, could be a shared lanyard.
+      var alreadyWarn = view.scanWarn === r.id && r.checkedIn
+        ? '<div class="already-warn" role="alert"><strong>Already checked in' + (r.checkedInAt ? ' at ' + esc(String(r.checkedInAt).replace(/^\d+ \w+, /, "")) : '') + (r.checkedInBy ? ' by ' + esc(r.checkedInBy) : '') + '</strong>' +
+            '<span>Check the photo matches the person in front of you.</span></div>'
+        : '';
+
       var flags = "";
       var flagPills = [];
       if (r.walkin) flagPills.push('<span class="pill pill-walkin">Walk-in</span>');
+      if (r.allergy) flagPills.push('<span class="pill pill-critical pill-strong">&#9888; Allergy: ' + esc(r.allergy) + '</span>');
+      if (r.medical) flagPills.push('<button class="pill pill-critical pill-btn" data-action="personTab" data-tab="details" type="button">&#9877; Medical notes &middot; see Details</button>');
       if (r.dietary) flagPills.push('<span class="pill pill-warning">' + esc(r.dietary) + '</span>');
       if (flagPills.length) flags = '<div class="flag-row">' + flagPills.join("") + '</div>';
 
@@ -4525,7 +4569,7 @@
         '</div>';
 
       var lostSection = r.lost
-        ? '<div class="alert-lost">&#128680; Reported lost at ' + esc(r.lostAt) + '</div>' +
+        ? '<div class="alert-lost">&#128680; Reported lost at ' + esc(r.lostAt) + (r.lostBy ? ' by ' + esc(r.lostBy) : '') + '</div>' +
           '<button class="btn btn-block" data-action="toggleLost" data-id="' + r.id + '" type="button">Mark as found</button>'
         : '<button class="btn btn-block btn-danger" data-action="toggleLost" data-id="' + r.id + '" type="button">&#128680; Mark as lost</button>';
 
@@ -4542,7 +4586,7 @@
           var done = !!r[t.field];
           var meta = [];
           if (t.key === "shirt" && shirtText(r)) meta.push(esc(shirtText(r)));
-          meta.push(done ? "Done" + (r[t.atField] ? " " + esc(r[t.atField]) : "") : "Not yet");
+          meta.push(done ? "Done" + (r[t.atField] ? " " + esc(r[t.atField]) : "") + (r[t.field + "By"] ? " by " + esc(r[t.field + "By"]) : "") : "Not yet");
           return '<div class="task-row' + (done ? ' is-done' : '') + '">' +
             '<div class="task-text"><span class="task-name">' + esc(t.label) + '</span><span class="task-meta">' + meta.join(" &middot; ") + '</span></div>' +
             '<button class="pickup-check' + (done ? ' is-checked' : '') + '" data-action="askTask" data-id="' + r.id + '" data-task="' + t.key + '" type="button" role="checkbox" aria-checked="' + (done ? 'true' : 'false') + '" aria-label="' + esc(t.label) + ' for ' + esc(r.name) + '">&#10003;</button>' +
@@ -4553,7 +4597,7 @@
             '<div class="task-head"><span>Check-in list</span><span class="mono">' + doneCount + ' / ' + CHECKIN_TASKS.length + '</span></div>' +
             taskRows +
             '<div class="task-meta" style="text-align:center">' +
-              (r.checkedIn ? '&#10003; Checked in ' + esc(r.checkedInAt || '') : 'They\'re checked in once everything above is ticked') +
+              (r.checkedIn ? '&#10003; Checked in ' + esc(r.checkedInAt || '') + (r.checkedInBy ? ' by ' + esc(r.checkedInBy) : '') : 'They\'re checked in once everything above is ticked') +
             '</div>' +
           '</div>';
       } else if (view.personTab === "details") {
@@ -4578,7 +4622,7 @@
 
       el.innerHTML =
         '<button class="back-link" data-action="backFromScanned" type="button">&larr; Back</button>' +
-        idCard + lostSection + tabs + body + qrCard;
+        alreadyWarn + idCard + lostSection + tabs + body + qrCard;
 
       var qrBox = document.getElementById("personQrBox");
       if (qrBox) qrBox.appendChild(makeQrCanvas(r.id, 320));

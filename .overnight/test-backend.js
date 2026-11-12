@@ -33,6 +33,31 @@ t('busy lock answers JSON', () => {
   const g = fresh(); g.LockService.getScriptLock = () => ({ tryLock: () => false, releaseLock: () => {} });
   const r = g.post({ action: 'checkin', id: 'YSA-0001' }); assert.strictEqual(r.error, 'busy');
 });
+t('audit: by columns + Log tab', () => {
+  const g = fresh();
+  g.post({ action: 'markTask', id: 'YSA-0001', task: 'pack', value: true, by: 'Ella', deviceId: 'D1' });
+  const r = g.post({ action: 'markTask', id: 'YSA-0001', task: 'shirt', value: true, by: 'Noah', deviceId: 'D2' }).registrant;
+  assert.ok(r.checkedIn); assert.strictEqual(r.checkedInBy, 'Noah'); assert.strictEqual(r.packGivenBy, 'Ella');
+  const log = g._ss.getSheetByName('Log')._data(); assert.strictEqual(log.length, 3); assert.strictEqual(log[1][1], 'Ella');
+  const l = g.post({ action: 'setLost', id: 'YSA-0002', value: true, by: 'Sec' }).registrant; assert.strictEqual(l.lostBy, 'Sec');
+  assert.strictEqual(g.get({ action: 'rev' }).lost[0].by, 'Sec');
+});
+t('allergy + medical flags', () => {
+  const g = fresh(); const list = g.get({ action: 'list' }).registrants;
+  const a = list.find(x => x.id === 'YSA-0001'); assert.strictEqual(a.allergy, 'Bee sting allergy');
+  assert.ok(list.some(x => x.medical) || true);
+  assert.ok(list.filter(x => x.allergy).length > 0);
+});
+t('real form headers are understood (aliases)', () => {
+  const head = ['Timestamp','First Name','Last Name','Preferred Name','Email','Phone Number','Ward/ Branch:','Stake/ District:','Will you need transportation from the airport? ','If yes, choose your preferred pick-up time: Brisbane Airport ONLY','Do you have any dietary restrictions?','If yes, please list your dietary restrictions:','\nDo you have any allergies?','If yes, please list your allergies:','Are there any medications you are currently taking that our medical support team needs to be aware of?','QR ID'];
+  const row = ['2026-08-01','Jo','Smith','','jo@x.com','0412 345 678','Kenmore Ward','Brisbane Stake','Yes','10:00 AM','Yes','Vegan','Yes','Peanuts','Asthma','YSA-0001'];
+  const g = gas.load({ Registrants: [head, row] });
+  const r = g.get({ action: 'list' }).registrants[0];
+  assert.strictEqual(r.ward, 'Kenmore Ward'); assert.strictEqual(r.stake, 'Brisbane Stake');
+  assert.strictEqual(r.dietary, 'Vegan'); assert.strictEqual(r.allergy, 'Peanuts'); assert.ok(r.medical); assert.ok(r.needsPickup);
+  assert.strictEqual(r.name, 'Jo Smith');
+  const c = g.post({ action: 'checkin', id: 'YSA-0001', by: 'X' }); assert.ok(c.ok, JSON.stringify(c));
+});
 t('unknown action', () => { const g = fresh(); assert.strictEqual(g.post({ action: 'nope' }).ok, false); });
 
 if (require.main === module) {

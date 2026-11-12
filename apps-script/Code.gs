@@ -21,12 +21,62 @@ function getSheet_(name) {
   return sh;
 }
 
+// The app's own column names, plus the registration form's question wording for each, so the
+// script also understands a sheet that still has the form's headers ("Ward/ Branch:", "Will you
+// need transportation from the airport?" ...). An exact header always wins over an alias.
+var HEADER_ALIASES = {
+  'Registration Timestamp': [/^timestamp$/i],
+  'First Name': [/^first name/i],
+  'Last Name': [/^last name/i],
+  'Preferred Name': [/^preferred name/i],
+  'Email': [/^e-?mail/i],
+  'Phone': [/^phone/i, /^mobile/i],
+  'LDS Member': [/member of the church/i],
+  'Ward': [/^ward/i],
+  'Stake': [/^stake/i],
+  'Emergency Contact Name': [/^emergency contact name/i],
+  'Emergency Contact Relationship': [/relationship to emergency contact/i],
+  'Emergency Contact Mobile': [/^emergency contact (mobile|phone|number)/i],
+  'On-site / Off-site': [/on-?site attendee or off-?site/i],
+  'Requested Roommates': [/roomed near/i],
+  'Arrival Day/Time': [/what day and time do you plan on arriving/i],
+  'Airport Pickup Needed': [/transportation from the airport/i],
+  'Pickup Time': [/preferred pick-?up time/i],
+  'Return Airport Transport Needed': [/return airport transport/i],
+  'T-Shirt': [/convention t-?shirt/i],
+  'Dietary Restrictions': [/do you have any dietary/i],
+  'Dietary Detail': [/list your dietary/i],
+  'Allergies': [/do you have any allergies/i],
+  'Allergy Detail': [/list your allergies/i],
+  'Medical / Disability Notes': [/medications you are currently taking/i, /^medical/i],
+  'Other Needs for Convenors': [/other needs or considerations/i],
+  'Interested in Temple Ordinances': [/participate in temple ordinances/i],
+  'Brisbane Temple Worker': [/brisbane temple worker/i],
+  'Gender': [/^gender/i],
+  'DOB': [/^date of birth/i]
+};
+
 function headerMap_(sheet) {
   var lastCol = sheet.getLastColumn();
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var map = {};
-  headers.forEach(function (h, i) { map[String(h).trim()] = i + 1; }); // 1-based column index
+  headers.forEach(function (h, i) { var k = String(h).trim(); if (k && !map[k]) map[k] = i + 1; }); // 1-based column index
+  Object.keys(HEADER_ALIASES).forEach(function (canon) {
+    if (map[canon]) return;
+    for (var i = 0; i < headers.length; i++) {
+      var h = String(headers[i]).trim();
+      if (HEADER_ALIASES[canon].some(function (re) { return re.test(h); })) { map[canon] = i + 1; return; }
+    }
+  });
   return map;
+}
+
+// A form answer that means yes: "Yes", "yes please", "Y". Anything else (blank, No, N/A) is no.
+function isYes_(v) { return /^\s*y(es)?\b/i.test(String(v == null ? '' : v)); }
+// A free-text answer that isn't just "no": "No", "none", "n/a", "-" and blanks count as nothing.
+function realText_(v) {
+  var t = String(v == null ? '' : v).trim();
+  return /^(no|none|nil|n\/?a|na|-+|\.)$/i.test(t) ? '' : t;
 }
 
 function readRegistrants_() {
@@ -47,26 +97,36 @@ function col_(map, name) {
 }
 
 function rowToRegistrant_(row, map) {
-  function g(name) { return row[col_(map, name) - 1]; }
+  // Reading is forgiving: a column the sheet doesn't have just reads as blank. (Writes still
+  // need their column, and QR ID is always required.)
+  function g(name) { return map[name] ? row[map[name] - 1] : ''; }
+  function opt(name) { return map[name] ? (String(row[map[name] - 1] || '').trim() || null) : null; }
   var yes = function (v) { return String(v).trim().toLowerCase() === 'yes'; };
   var bookingsStr = g('Activity Bookings');
   var bookings = bookingsStr ? String(bookingsStr).split(',').map(function (s) { return s.trim(); }).filter(String) : [];
-  var dietaryYes = yes(g('Dietary Restrictions'));
+  var dietDetail = realText_(g('Dietary Detail'));
+  var dietAnswer = realText_(g('Dietary Restrictions'));
+  var dietary = dietDetail || (isYes_(dietAnswer) ? 'Dietary requirement' : (dietAnswer && !/^y/i.test(dietAnswer) ? dietAnswer : '')) || null;
+  var allergyDetail = realText_(g('Allergy Detail'));
+  var allergyAnswer = realText_(g('Allergies'));
+  var allergy = allergyDetail || (isYes_(allergyAnswer) ? 'Yes (see Details)' : (allergyAnswer && !/^y/i.test(allergyAnswer) ? allergyAnswer : '')) || null;
   return {
-    id: String(g('QR ID')).trim(),
+    id: String(row[col_(map, 'QR ID') - 1]).trim(),
     name: String((g('Preferred Name') || g('First Name')) + ' ' + g('Last Name')).trim(),
     firstName: g('First Name'),
     lastName: g('Last Name'),
     ward: g('Ward'),
     stake: g('Stake'),
-    dietary: dietaryYes ? (g('Dietary Detail') || 'Dietary requirement') : null,
+    dietary: dietary,
+    allergy: allergy,
+    medical: !!realText_(g('Medical / Disability Notes')),
     checkedIn: yes(g('Checked In')),
     checkedInAt: asAppTime_(g('Checked In At')),
     qrPrinted: yes(g('QR Printed')),
     qrPrintedAt: asAppTime_(g('QR Printed At')),
     lost: yes(g('Lost')),
     lostAt: asAppTime_(g('Lost At')),
-    needsPickup: yes(g('Airport Pickup Needed')),
+    needsPickup: isYes_(g('Airport Pickup Needed')),
     pickupTime: asAppTime_(g('Pickup Time')),
     team: g('Team') || null,
     bookings: bookings,
@@ -77,12 +137,18 @@ function rowToRegistrant_(row, map) {
     packGivenAt: map['Pack Given At'] ? asAppTime_(row[map['Pack Given At'] - 1]) : null,
     shirtGiven: map['Shirt Given'] ? yes(row[map['Shirt Given'] - 1]) : false,
     shirtGivenAt: map['Shirt Given At'] ? asAppTime_(row[map['Shirt Given At'] - 1]) : null,
-    walkin: map['Walk-in'] ? yes(row[map['Walk-in'] - 1]) : false
+    walkin: map['Walk-in'] ? yes(row[map['Walk-in'] - 1]) : false,
+    checkedInBy: opt('Checked In By'),
+    lostBy: opt('Lost By'),
+    packGivenBy: opt('Pack Given By'),
+    shirtGivenBy: opt('Shirt Given By'),
+    pickedUpBy: opt('Picked Up By')
   };
 }
 
 function readActivities_() {
-  var sh = getSheet_(SHEET_ACTIVITIES);
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ACTIVITIES);
+  if (!sh) return [];   // activities are optional
   var map = headerMap_(sh);
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
@@ -155,7 +221,7 @@ function cellIsYes_(sh, map, row, header) {
   return String(sh.getRange(row, map[header]).getValue()).trim().toLowerCase() === 'yes';
 }
 
-function syncCheckedInFromTasks_(sh, map, row) {
+function syncCheckedInFromTasks_(sh, map, row, body) {
   var allYes = true;
   for (var i = 0; i < CHECKIN_TASK_HEADERS.length; i++) {
     if (!cellIsYes_(sh, map, row, CHECKIN_TASK_HEADERS[i])) { allYes = false; break; }
@@ -163,6 +229,13 @@ function syncCheckedInFromTasks_(sh, map, row) {
   if (!allYes || cellIsYes_(sh, map, row, 'Checked In')) return;
   sh.getRange(row, col_(map, 'Checked In')).setValue('Yes');
   writeStamp_(sh, row, col_(map, 'Checked In At'), nowStamp_());
+  writeBy_(sh, map, row, 'Checked In By', body, true);
+}
+
+// "Who did it" columns: the staff name the phone sends as body.by. Blank when cleared.
+function writeBy_(sh, map, row, header, body, on) {
+  if (!map[header]) return;
+  sh.getRange(row, map[header]).setValue(on ? String((body && body.by) || '').slice(0, 60) : '');
 }
 
 function jsonOut_(obj) {
@@ -217,7 +290,10 @@ function doPost(e) {
       return jsonOut_({ ok: false, error: 'Bad JSON body: ' + parseErr });
     }
     var out = handlePost_(body);
-    if (out && out.ok && REV_ACTIONS[body.action]) bumpRev_(body, out);
+    if (out && out.ok && REV_ACTIONS[body.action]) {
+      bumpRev_(body, out);      // Live.gs
+      logAction_(body, out);    // Log.gs
+    }
     return jsonOut_(out);
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err) });
@@ -244,6 +320,7 @@ function handlePost_(body) {
     if (!alreadyIn) {
       sh.getRange(row, col_(map, 'Checked In')).setValue('Yes');
       writeStamp_(sh, row, col_(map, 'Checked In At'), nowStamp_());
+      writeBy_(sh, map, row, 'Checked In By', body, true);
     }
     return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(row, 1, 1, sh.getLastColumn()).getValues()[0], map) });
   }
@@ -261,6 +338,7 @@ function handlePost_(body) {
     sh.getRange(row2, col_(map, 'Lost')).setValue(newLost ? 'Yes' : 'No');
     if (newLost) writeStamp_(sh, row2, col_(map, 'Lost At'), nowStamp_());
     else sh.getRange(row2, col_(map, 'Lost At')).setValue('');
+    writeBy_(sh, map, row2, 'Lost By', body, newLost);
     return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(row2, 1, 1, sh.getLastColumn()).getValues()[0], map) });
   }
 
@@ -316,6 +394,7 @@ function handlePost_(body) {
     sh.getRange(rowP, col_(map, 'Picked Up')).setValue(pickedOn ? 'Yes' : 'No');
     if (pickedOn) writeStamp_(sh, rowP, col_(map, 'Picked Up At'), nowStamp_());
     else sh.getRange(rowP, col_(map, 'Picked Up At')).setValue('');
+    writeBy_(sh, map, rowP, 'Picked Up By', body, pickedOn);
     return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowP, 1, 1, sh.getLastColumn()).getValues()[0], map) });
   }
 
@@ -324,12 +403,13 @@ function handlePost_(body) {
     if (rowU === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
     sh.getRange(rowU, col_(map, 'Checked In')).setValue('No');
     sh.getRange(rowU, col_(map, 'Checked In At')).setValue('');
+    writeBy_(sh, map, rowU, 'Checked In By', body, false);
     return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowU, 1, 1, sh.getLastColumn()).getValues()[0], map) });
   }
 
   // Check-in list ticks: task "pack" -> Pack Given / Pack Given At, "shirt" -> Shirt Given / Shirt Given At
   if (action === 'markTask') {
-    var TASK_COLUMNS = { pack: ['Pack Given', 'Pack Given At'], shirt: ['Shirt Given', 'Shirt Given At'] };
+    var TASK_COLUMNS = { pack: ['Pack Given', 'Pack Given At', 'Pack Given By'], shirt: ['Shirt Given', 'Shirt Given At', 'Shirt Given By'] };
     var cols = TASK_COLUMNS[body.task];
     if (!cols) return ({ ok: false, error: 'Unknown task: ' + body.task });
     var rowT = findRowByQrId_(reg, body.id);
@@ -338,7 +418,8 @@ function handlePost_(body) {
     sh.getRange(rowT, col_(map, cols[0])).setValue(on ? 'Yes' : 'No');
     if (on) writeStamp_(sh, rowT, col_(map, cols[1]), nowStamp_());
     else sh.getRange(rowT, col_(map, cols[1])).setValue('');
-    syncCheckedInFromTasks_(sh, map, rowT);
+    writeBy_(sh, map, rowT, cols[2], body, on);
+    syncCheckedInFromTasks_(sh, map, rowT, body);
     return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(rowT, 1, 1, sh.getLastColumn()).getValues()[0], map) });
   }
 
@@ -366,7 +447,10 @@ function handlePost_(body) {
 
 // ===================== Photo / pickup / full-details additions =====================
 // Added columns are created automatically on the Registrants tab the first time the script runs.
-var EXTRA_COLUMNS = ['Photo URL', 'Picked Up', 'Picked Up At', 'Pack Given', 'Pack Given At', 'Shirt Given', 'Shirt Given At'];
+// Columns the app writes to. Any that are missing get added to the right of the Registrants tab.
+var EXTRA_COLUMNS = ['Team', 'QR Printed', 'QR Printed At', 'Checked In', 'Checked In At', 'Lost', 'Lost At', 'Activity Bookings',
+  'Photo URL', 'Picked Up', 'Picked Up At', 'Pack Given', 'Pack Given At', 'Shirt Given', 'Shirt Given At',
+  'Checked In By', 'Lost By', 'Pack Given By', 'Shirt Given By', 'Picked Up By'];
 // Columns that are never sent to phones (government-style ID images etc.). Edit to suit.
 var HIDE_COLUMNS = [/id photo/i, /passport/i, /licen[cs]e/i, /^please attach a clear/i];
 
