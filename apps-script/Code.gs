@@ -205,7 +205,9 @@ function doGet(e) {
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  // tryLock returns false instead of throwing, so a busy Sheet still answers in JSON
+  // ("busy") and the phone keeps the change queued and retries it.
+  if (!lock.tryLock(20000)) return jsonOut_({ ok: false, error: 'busy' });
   try {
     var body = {};
     try { body = JSON.parse(e.postData.contents); } catch (parseErr) {
@@ -242,16 +244,26 @@ function doPost(e) {
       return jsonOut_({ ok: true, registrant: rowToRegistrant_(sh.getRange(row2, 1, 1, sh.getLastColumn()).getValues()[0], map) });
     }
 
+    // One read, one write per column: printing 1,000 cards used to be 2,000 single-cell
+    // writes while holding the lock, which blocked every other phone.
     if (action === 'markPrinted') {
       var ids = body.ids || (body.id ? [body.id] : []);
       var stamp = nowStamp_();
-      ids.forEach(function (id) {
-        var r = findRowByQrId_(reg, id);
-        if (r !== -1) {
-          sh.getRange(r, col_(map, 'QR Printed')).setValue('Yes');
-          writeStamp_(sh, r, col_(map, 'QR Printed At'), stamp);
+      var wanted = {};
+      ids.forEach(function (id) { wanted[String(id).trim()] = true; });
+      var qrIdx = col_(map, 'QR ID') - 1, pCol = col_(map, 'QR Printed'), paCol = col_(map, 'QR Printed At');
+      var pVals = [], paVals = [], changed = 0;
+      reg.rows.forEach(function (row) {
+        if (wanted[String(row[qrIdx]).trim()]) {
+          pVals.push(['Yes']); paVals.push([stamp]); changed++;
+        } else {
+          pVals.push([row[pCol - 1]]); paVals.push([row[paCol - 1]]);
         }
       });
+      if (changed) {
+        sh.getRange(reg.firstDataRow, pCol, pVals.length, 1).setValues(pVals);
+        sh.getRange(reg.firstDataRow, paCol, paVals.length, 1).setNumberFormat('@').setValues(paVals);
+      }
       return jsonOut_({ ok: true, printed: ids });
     }
 
@@ -347,12 +359,17 @@ var EXTRA_COLUMNS = ['Photo URL', 'Picked Up', 'Picked Up At', 'Pack Given', 'Pa
 // Columns that are never sent to phones (government-style ID images etc.). Edit to suit.
 var HIDE_COLUMNS = [/id photo/i, /passport/i, /licen[cs]e/i, /^please attach a clear/i];
 
+// Checked at most every 10 minutes (CacheService), so a normal "list" request never writes.
 function ensureColumns_() {
+  var cache = CacheService.getScriptCache();
+  var key = 'colsOk' + EXTRA_COLUMNS.length;
+  if (cache.get(key)) return;
   var sh = getSheet_(SHEET_REGISTRANTS);
   var lastCol = sh.getLastColumn();
   var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
   var missing = EXTRA_COLUMNS.filter(function (c) { return headers.indexOf(c) === -1; });
   if (missing.length) sh.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
+  cache.put(key, '1', 600);
 }
 
 function driveIdFrom_(url) {

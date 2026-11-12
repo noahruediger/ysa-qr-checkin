@@ -16,7 +16,8 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
    commit "overnight: take lock" and push before doing any work. Refresh LOCK on every commit.
    Commit + push **at least every 15 minutes** (small commits) so the next run can pick up if usage runs out.
 3. Take the first unchecked item below, do it, tick it `[x]`, add a line to the Log, commit, push. Repeat.
-4. Check your work: `node --check` on the JS pulled out of index.html (see `.overnight/check.sh`), and
+4. Commit with `.overnight/commit.sh "message"` (runs checks, refreshes LOCK, pushes).
+   Check your work: `node --check` on the JS pulled out of index.html (see `.overnight/check.sh`), and
    test the Apps Script logic in node with the mock in `.overnight/` where practical.
 5. Keep the code style: plain ES5-ish JS in one `index.html`, no build step, no frameworks.
    Apps Script files stay ES5 (`var`, no arrow functions) so they paste into the editor.
@@ -27,9 +28,9 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 ## Items (in priority order)
 
 ### Backend bugs (apps-script/)
-- [ ] B1 `doPost`: move `lock.waitLock` inside try (use `tryLock(20000)`), return `{ok:false,error:'busy'}` JSON instead of an HTML error page; client treats `busy` as retryable.
-- [ ] B2 `markPrinted`: build a QR ID → row index once, write the two columns in one `setValues` each (like `resetPrinted`). No per-cell writes.
-- [ ] B3 `ensureColumns_` only when columns are actually missing; don't write on every `list` (cache the check in `CacheService` for 10 min).
+- [x] B1 `doPost`: move `lock.waitLock` inside try (use `tryLock(20000)`), return `{ok:false,error:'busy'}` JSON instead of an HTML error page; client treats `busy` as retryable.
+- [x] B2 `markPrinted`: build a QR ID → row index once, write the two columns in one `setValues` each (like `resetPrinted`). No per-cell writes.
+- [x] B3 `ensureColumns_` only when columns are actually missing; don't write on every `list` (cache the check in `CacheService` for 10 min).
 - [ ] B4 Revision counter: every write bumps a number in `PropertiesService` (script props) + CacheService. New cheap `doGet action=rev` returns `{rev, lost:[ids+name+at+by], serverTime}`. App polls `rev` every ~8s and only pulls the full list when rev changed (or every 2 min as a safety net). Fixes the "every phone pulls 1,300 rows every 25s" problem and powers the lost alert.
 - [ ] B5 Audit trail: client sends `by` (staff name) + `deviceId` on every POST. Server writes `Checked In By`, `Lost By`, `Pack Given By`, `Shirt Given By`, `Picked Up By` columns (auto-added) and appends to a `Log` tab: Time, Staff, Device, Action, QR ID, Name, Detail. Batch-friendly (appendRow is fine).
 - [ ] B6 Optional access code: if Script Property `ACCESS_CODE` is set, every GET/POST must carry `key` equal to it, else `{ok:false,error:'locked'}`. App: Settings field for the code, stored in localStorage, included in the setup QR. `resetPrinted` additionally requires role Admin from the Staff tab (deviceId lookup). Document in README.
@@ -38,7 +39,7 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 - [ ] B9 Real form sheet support: new `Import.gs`. Script Property `SOURCE_SHEET_ID` (+ `SOURCE_TAB`, default `DO NOT EDIT!!! LIVE DATA`). `syncFromForm()` reads the source, maps form questions → canonical headers via an alias table (regexes for "Ward/ Branch:", "Will you need transportation from the airport?", etc.), and upserts into `Registrants` keyed by Email (fallback: timestamp+name). New people get the next `YSA-####` QR ID (stable, never reused, counter in script props). Never touches app-owned columns (Checked In, Lost, Pack, Shirt, Printed, Picked Up, Team, Bookings…). `installSyncTrigger()` adds a 5-minute time trigger. Also `col_` must stay strict only for QR ID; other missing columns → null not a crash.
 - [ ] B10 `fixStampColumns()` one-off: turns raw serial numbers in any "… At" column into "d MMM, h:mm a" text.
 - [ ] B11 `buildDashboard()` one-off: rewrites the Dashboard tab with header-based formulas (MATCH on row 1) so it works on any column layout; also counts allergies, lost, picked up, walk-ins, per-team checked in.
-- [ ] B12 Set the TEST sheet time zone to Australia/Brisbane + en_AU locale (done via Sheets API from the first session if possible — see log).
+- [x] B12 Set the TEST sheet time zone to Australia/Brisbane + en_AU locale (done via Sheets API from the first session if possible — see log).
 
 ### Front-end bugs (index.html)
 - [ ] F0 answerTask: only send `uncheckin` when this phone's own tick caused the check-in (i.e. person was not checked in before any tick, or checkedInBy came from a task). If they were checked in some other way, unticking/ticking leaves Checked In alone.
@@ -61,3 +62,4 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 
 ## Log
 - 2026-11-12 12:35 UTC (first session) — Plan written. Hourly scheduled runs created 11:40pm–4:40am Brisbane. Noah said not to ask anything.
+- 12:45 UTC — B1 (tryLock → 'busy' JSON), B2 (batch markPrinted), B3 (column check cached 10 min) done; client fetch timeout 30/45 s added so a hung request can't block the queue. B12: TEST sheet set to Australia/Brisbane + en_AU via Sheets API.

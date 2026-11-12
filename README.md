@@ -101,7 +101,7 @@ The box in the top right shows how the phone is talking to the Sheet:
 
 Check-in ticks (pack and shirt), lost flags, pickups and bookings are kept on the phone until the Sheet accepts them, including across a reload. Someone is marked **Checked In** in the Sheet once both pack and shirt are Yes, even if those ticks were made on two different phones. Lost is a set flag (with a confirm), not a toggle. Times are shown in Brisbane local time.
 
-The app also refreshes the people list in the background about every 25 seconds, and an unrecognised QR code is checked against the Sheet once before it’s reported as unknown. A save that hangs on the script lock can still hold up later saves until the browser gives up on that request — that’s a separate follow-up.
+The app also refreshes the people list in the background about every 25 seconds, and an unrecognised QR code is checked against the Sheet once before it’s reported as unknown. If the Sheet is busy or slow, a save is cut off after about 45 seconds and retried, so one stuck save can’t hold up the rest.
 
 ## Problems and staff
 

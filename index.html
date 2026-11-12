@@ -1298,9 +1298,26 @@
   }
 
   // Any request that gets an answer back means the Sheet is reachable; a network failure means it isn't.
+  // Every request gives up after 30 s (45 s for writes), so one hung request can't hold up
+  // the save queue forever. A write that timed out is retried; the Sheet ignores repeats.
   function trackedFetch(url, opts) {
-    return fetch(url, opts).then(function (r) { markReachable(true); return r.json(); },
-      function (err) { markReachable(false); throw err; });
+    opts = opts || {};
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = null;
+    if (ctrl) {
+      opts.signal = ctrl.signal;
+      timer = setTimeout(function () { ctrl.abort(); }, opts.method === "POST" ? 45000 : 30000);
+    }
+    return fetch(url, opts).then(function (r) {
+      if (timer) clearTimeout(timer);
+      markReachable(true);
+      return r.json();
+    }, function (err) {
+      if (timer) clearTimeout(timer);
+      markReachable(false);
+      if (err && err.name === "AbortError") throw new Error("the Sheet took too long to answer");
+      throw err;
+    });
   }
 
   function apiGet(action) {
@@ -1326,9 +1343,8 @@
   // Walk-ins, problems and staff posts stay memory-only (walk-in photos are large, and those
   // screens already keep their own local copy).
   //
-  // Follow-up (not in this change): a request that never returns — for example the script
-  // lock wait — still blocks this pump until the browser ends it. A lock failure that does
-  // return is retried with backoff, but there is no separate lock-timeout budget.
+  // A request that never returns is cut off by trackedFetch's timeout, and a busy Sheet
+  // answers "busy" (script lock), so neither can stall this pump.
   var WRITE_STORE = "qrCheckinWriteQueue";
   var DURABLE_ACTIONS = { checkin: 1, uncheckin: 1, markTask: 1, markPickedUp: 1, setLost: 1, book: 1, markPrinted: 1 };
   var durableQueue = [];
