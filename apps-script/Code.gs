@@ -229,27 +229,23 @@ function keyOk_(given) {
   return String(given == null ? '' : given).trim() === String(code).trim();
 }
 
-// Admin check for risky actions (Reset printing): the phone's Device ID must be on the Staff tab
-// with Role = Admin. If nobody is Admin yet, everyone is allowed (so a new Sheet isn't stuck).
+// Admin check for risky actions (Reset printing): the phone's Device ID must be on the Staff tab,
+// approved, with Role = Admin. If nobody is an approved Admin yet, everyone is allowed.
 function isAdminDevice_(deviceId) {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Staff');
-  if (!sh || sh.getLastRow() < 2) return true;
-  var map = headerMap_(sh);
-  if (!map['Role'] || !map['Device ID']) return true;
-  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
-  var anyAdmin = false, me = false;
-  vals.forEach(function (row) {
-    var admin = String(row[map['Role'] - 1]).trim() === 'Admin';
-    if (admin) anyAdmin = true;
-    if (admin && String(row[map['Device ID'] - 1]).trim() === String(deviceId || '').trim()) me = true;
-  });
-  return !anyAdmin || me;
+  var access = staffAccessMap_();   // Staff.gs
+  if (!hasApprovedAdmin_(access)) return true;
+  var me = access[String(deviceId || '').trim()];
+  return !!(me && me.status === 'Approved' && me.role === 'Admin');
 }
 
 function doGet(e) {
   try {
     if (!keyOk_(e.parameter.key)) return jsonOut_({ ok: false, error: 'locked' });
     var action = (e.parameter.action || 'list');
+    // Approvals (Staff.gs): only staffStatus works before an Admin has approved this phone.
+    if (action === 'staffStatus') return jsonOut_(staffStatus_(e.parameter));
+    var blocked = accessError_(e.parameter.deviceId);
+    if (blocked) return jsonOut_({ ok: false, error: blocked });
     if (action === 'list') {
       var reg = readRegistrants_();
       // Optional paging (offset / limit) so the app can show a "340 of 1,000 loaded" count on first load.
@@ -295,6 +291,11 @@ function doPost(e) {
       return jsonOut_({ ok: false, error: 'Bad JSON body: ' + parseErr });
     }
     if (!keyOk_(body.key)) return jsonOut_({ ok: false, error: 'locked' });
+    // Approvals (Staff.gs): a phone that isn't approved can only sign up (registerStaff).
+    if (body.action !== 'registerStaff') {
+      var blockedP = accessError_(body.deviceId);
+      if (blockedP) return jsonOut_({ ok: false, error: blockedP });
+    }
     var out = handlePost_(body);
     if (out && out.ok && REV_ACTIONS[body.action]) {
       bumpRev_(body, out);      // Live.gs
@@ -315,6 +316,7 @@ function handlePost_(body) {
   if (action === 'reportProblem') return reportProblem_(body);        // Problems.gs
   if (action === 'setProblemStatus') return setProblemStatus_(body);  // Problems.gs
   if (action === 'registerStaff') return registerStaff_(body);        // Staff.gs
+  if (action === 'setStaffAccess') return setStaffAccess_(body);      // Staff.gs (Admin only)
 
   var reg = readRegistrants_();
   var sh = reg.sheet, map = reg.map;

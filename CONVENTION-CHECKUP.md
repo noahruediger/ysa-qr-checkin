@@ -31,6 +31,10 @@ Things that can't be done from code. Work through them before the convention, ro
 - [ ] Who is **Admin** (only Admin phones can Reset printing once an Admin exists).
 - [ ] Whether lanyards should print the new **ALLERGY** badge (Print → layout options → Allergy pill; off by default).
 
+## 4b. Approvals
+- [ ] After deploying the update with approvals, check everyone who should have access is on the Staff tab as **Approved** (people already there are kept). Remove any old test phones you don't want.
+- [ ] Decide who besides you is **Admin** (they can approve new phones). Set their role in Settings → People with access.
+
 ## 5. Test with real phones (30 minutes, worth it)
 - [ ] One iPhone + one Android: scan codes and listen for the different sounds (Settings → Scan sounds → Test). iPhone: silent switch off; it beeps but can't vibrate.
 - [ ] Scan someone twice: the second scan should say "Already checked in at … by …".
@@ -40,6 +44,8 @@ Things that can't be done from code. Work through them before the convention, ro
 - [ ] Laptop: open the app full-screen and check the sidebar, the dashboard team bars and the Print tab preview.
 - [ ] Print one real sheet of lanyards and measure a card (should be 82 × 130 mm). Compare it to the on-screen preview.
 - [ ] Check the new `Log` tab fills in as people use the app.
+- [ ] On a phone that has never used the app: sign up, check it says "Waiting for approval", approve it from your phone, and check it opens by itself.
+- [ ] Laptop: People → Filters, try a few (e.g. Not yet + Team Blue) and check the count makes sense.
 
 ## Notes from the overnight run
 - Everything was tested on a copy of the backend running in node (`.overnight/test-backend.js`) and in headless Chrome against it (`.overnight/smoke.py`, `.overnight/offline-test.py`), not on real phones or the live Google deployment.

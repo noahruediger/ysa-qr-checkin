@@ -69,6 +69,7 @@ t('reset printing is admin only once an Admin exists', () => {
   const g = fresh();
   g.post({ action: 'registerStaff', deviceId: 'DA', name: 'Boss', role: 'Admin' });
   g.post({ action: 'registerStaff', deviceId: 'DB', name: 'Helper', role: 'Other' });
+  assert.ok(g.post({ action: 'setStaffAccess', deviceId: 'DA', target: 'DB', status: 'Approved' }).ok);
   assert.strictEqual(g.post({ action: 'resetPrinted', deviceId: 'DB' }).error, 'admin only');
   assert.ok(g.post({ action: 'resetPrinted', deviceId: 'DA' }).ok);
 });
@@ -115,6 +116,48 @@ t('admin: fixStampColumns + buildDashboard run', () => {
   assert.strictEqual(sh._data()[2][c], '12 Nov, 10:30 AM');
   assert.ok(/^\d+ \w+, \d+:\d\d (AM|PM)$/.test(sh._data()[1][c]), sh._data()[1][c]);
   assert.strictEqual(g.buildDashboard(), 'Dashboard rebuilt');
+});
+t('approvals: first phone is Admin, others wait until approved', () => {
+  const g = fresh();
+  const first = g.post({ action: 'registerStaff', deviceId: 'D1', name: 'Noah', role: 'Other' });
+  assert.strictEqual(first.me.status, 'Approved'); assert.strictEqual(first.me.role, 'Admin');
+  assert.ok(g.get({ action: 'list', deviceId: 'D1' }).ok);
+  // unknown phone: told to sign up; nothing readable
+  assert.strictEqual(g.get({ action: 'list', deviceId: 'DX' }).error, 'unregistered');
+  assert.strictEqual(g.get({ action: 'rev', deviceId: 'DX' }).error, 'unregistered');
+  assert.strictEqual(g.post({ action: 'checkin', id: 'YSA-0001', deviceId: 'DX' }).error, 'unregistered');
+  // signs up asking for Admin: waits, role is only a request
+  const r = g.post({ action: 'registerStaff', deviceId: 'D2', name: 'Sneaky', role: 'Admin' });
+  assert.strictEqual(r.me.status, 'Pending'); assert.deepStrictEqual(r.staff, []);
+  assert.strictEqual(g.get({ action: 'list', deviceId: 'D2' }).error, 'pending');
+  assert.strictEqual(g.get({ action: 'search', q: 'gmail', deviceId: 'D2' }).error, 'pending');
+  assert.strictEqual(g.get({ action: 'staffStatus', deviceId: 'D2' }).me.status, 'Pending');
+  // a non-admin can't approve
+  g.post({ action: 'registerStaff', deviceId: 'D3', name: 'Ella', role: 'Other' });
+  assert.strictEqual(g.post({ action: 'setStaffAccess', deviceId: 'D3', target: 'D3', status: 'Approved' }).error, 'pending');
+  // admin approves as Security (not the Admin they asked for)
+  const ok = g.post({ action: 'setStaffAccess', deviceId: 'D1', target: 'D2', status: 'Approved', role: 'Security' });
+  assert.ok(ok.ok, JSON.stringify(ok));
+  assert.ok(g.get({ action: 'list', deviceId: 'D2' }).ok);
+  // approved phone can't promote itself by re-signing up as Admin
+  g.post({ action: 'registerStaff', deviceId: 'D2', name: 'Sneaky', role: 'Admin' });
+  assert.strictEqual(g.get({ action: 'staffStatus', deviceId: 'D2' }).me.role, 'Security');
+  assert.strictEqual(g.post({ action: 'resetPrinted', deviceId: 'D2' }).error, 'admin only');
+  // deny / remove
+  assert.ok(g.post({ action: 'setStaffAccess', deviceId: 'D1', target: 'D2', status: 'Denied' }).ok);
+  assert.strictEqual(g.get({ action: 'list', deviceId: 'D2' }).error, 'denied');
+  // can't remove the last Admin
+  assert.strictEqual(g.post({ action: 'setStaffAccess', deviceId: 'D1', target: 'D1', status: 'Denied' }).error, 'last admin');
+  const staff = g.get({ action: 'staff', deviceId: 'D1' }).staff;
+  assert.strictEqual(staff.find(x => x.deviceId === 'D2').approvedBy, 'Denied by Noah');
+});
+t('approvals: existing staff are kept, and REQUIRE_APPROVAL=false switches it off', () => {
+  const head = ['Name', 'Role', 'Device', 'First Connected', 'Last Seen', 'Device ID', 'Last Active'];
+  const g = gas.load(Object.assign(JSON.parse(JSON.stringify(fixture)), { Staff: [head, ['Ella', 'Admin', 'Mac', '', '', 'DE', ''], ['Em', 'Other', 'Android', '', '', 'DM', '']] }));
+  assert.ok(g.get({ action: 'list', deviceId: 'DM' }).ok, 'old staff keep access');
+  assert.strictEqual(g.get({ action: 'list', deviceId: 'NEW' }).error, 'unregistered');
+  g._props.REQUIRE_APPROVAL = 'false'; g._cache.staffAccess && delete g._cache.staffAccess;
+  assert.ok(g.get({ action: 'list', deviceId: 'NEW' }).ok);
 });
 t('unknown action', () => { const g = fresh(); assert.strictEqual(g.post({ action: 'nope' }).ok, false); });
 
