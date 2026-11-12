@@ -46,7 +46,7 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 
 ### Front-end bugs (index.html)
 - [x] F0 answerTask: only send `uncheckin` when this phone's own tick caused the check-in (i.e. person was not checked in before any tick, or checkedInBy came from a task). If they were checked in some other way, unticking/ticking leaves Checked In alone.
-- [ ] F0b Walk-in sign-ups survive a reload: keep pending `registerWalkin` in localStorage (photo downscaled to ≤ 400px JPEG so it fits), retried by the durable queue.
+- [x] F0b Walk-in sign-ups survive a reload: keep pending `registerWalkin` in localStorage (photo downscaled to ≤ 400px JPEG so it fits), retried by the durable queue.
 
 ### Features
 - [x] F1 Sound + vibration on scan. Web Audio (unlock AudioContext on the scan-button tap), `navigator.vibrate` where supported (not iPhone). Distinct: success (two rising beeps), already checked in (two flat mid beeps + double buzz), LOST person scanned (urgent triple), unknown code (low buzz, long vibrate), walk-in blank card (single soft beep). Settings toggle "Scan sounds" (default on).
@@ -71,3 +71,4 @@ hand, a deploy) goes into `CONVENTION-CHECKUP.md` at the repo root.
 - 13:45 UTC — B6: ACCESS_CODE script property gate (keyOk_ in doGet/doPost → 'locked'); app Settings 'Access code' field, apiBase()/apiUrl() add key to every GET, rawPost adds key to body; setup QR = URL#key=CODE, parsed on connect; resetPrinted requires an Admin device (if any Admin exists). Friendly messages for locked/busy/admin only.
 - 13:55 UTC — B8 (searchPeople_: phone digits incl. +61/spaces, emergency phone, email, name; 20 max) + F4 (People search hits the Sheet for phone/email/unknown names, debounced; 'Matched in the Sheet' section). People list now capped at 200 rows (perf with 1,300) and shows allergy/In pills + team.
 - 14:10 UTC — F3: manifest.webmanifest, icons/ (generated), sw.js (shell precache, network-first index with 4 s fallback, fonts cache-first, never caches /exec or script.google.com), vendor/ qrious + jsQR (licences included), Settings 'Install on this phone' card (beforeinstallprompt / iOS instructions / offline-ready status). Also: last full people list saved to localStorage (qrCheckinPeopleCache) and used when the Sheet can't be reached at boot → app fully usable offline. Test: `python3 .overnight/offline-test.py`. If sw.js changes, bump VERSION.
+- 14:15 UTC — F0b: walk-ins were already saved in localStorage (qrCheckinWalkins, photo ≤480px) and sent at boot; now also re-sent after every good refresh, with an in-flight guard.

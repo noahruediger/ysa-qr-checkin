@@ -1807,17 +1807,22 @@
   }
 
   // Re-send walk-ins the Sheet hasn't confirmed yet (e.g. registered while the wifi was down).
+  // Walk-ins signed up with no signal are kept on the phone (localStorage, photo included) and
+  // sent after the next successful refresh from the Sheet, and on every app start.
+  var walkinSending = {};
   function syncPendingWalkins() {
     if (!BACKEND_URL) return;
     Object.keys(localWalkins).forEach(function (id) {
       var w = localWalkins[id];
-      if (w.synced) return;
+      if (w.synced || walkinSending[id]) return;
       var onServer = byId(state.registrants, id);
       if (onServer && onServer.fromServer) { w.synced = true; saveLocalWalkins(); return; }
+      walkinSending[id] = true;
       apiPost({ action: "registerWalkin", id: w.id, name: w.name, ward: w.ward || "", photo: w.photo || "", at: w.at })
         .then(function (res) {
+          walkinSending[id] = false;
           if (res && res.ok) { w.synced = true; saveLocalWalkins(); }
-        }).catch(function () { /* try again next load */ });
+        }).catch(function () { walkinSending[id] = false; /* tried again after the next good refresh */ });
     });
   }
 
@@ -3520,6 +3525,7 @@
       var before = peopleSig(state.registrants);
       applyPeopleSnapshot(data);
       savePeopleCache(data);
+      syncPendingWalkins();
       if (peopleCacheAt) { peopleCacheAt = null; setConnStatus("Back online — live off the Sheet", true); }
       if (peopleSig(state.registrants) !== before && !viewBlocksRefreshRender()) renderKeepingScroll();
       return data;
