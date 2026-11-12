@@ -82,6 +82,31 @@ t('desk search by phone / email', () => {
   r = g.get({ action: 'search', q: email.split('@')[0].toUpperCase() }); assert.strictEqual(r.results[0].id, row[0]);
   assert.strictEqual(g.get({ action: 'search', q: 'ab' }).results.length, 0);
 });
+t('import from the real form layout', () => {
+  const formHead = ["Timestamp","First Name","Last Name","Preferred Name","Email","Please attach a clear and suitable photo of yourself for recognition and identification purposes.","Phone Number","Are you a member of the Church of Jesus Christ of Latter-Day Saints?","Ward/ Branch:","Stake/ District:","Emergency Contact Name:","Relationship to Emergency Contact:","Emergency Contact Mobile:","For attendees, your ward bishop may request an interview...","Name of your current Bishop or Branch President:","Will you be attending as an On-site attendee or Off-site attendee?","Consider adding in names of 1 or 2 friends that you would like to be roomed near.","What day and time do you plan on arriving?","Will you need transportation from the airport? ","If yes, choose your preferred pick-up time: Brisbane Airport ONLY","Will You Need Return Airport Transport? (Closing Ceremony: Approx. 10:00am–12:00pm)  ","If you are interested in purchasing a YSA Convention T-Shirt, please state the colour and size of your choice.","Do you have any dietary restrictions?","If yes, please list your dietary restrictions:","\nDo you have any allergies?","If yes, please list your allergies:","Are there any medications you are currently taking that our medical support team needs to be aware of? Add any chronic or mental illnesses...","Identify any other needs or considerations you have that the event convenors or registrars should be aware of.\n","Full Name (Electronic Signature):","\nDate:","Do you want to participate in temple ordinances as part of the service activity? (Bring your own temple clothing)","If yes, are you a Brisbane Temple Worker?","Gender","Date of Birth"];
+  const mk = (first, last, email, extra) => { const r = formHead.map(() => ''); r[0] = '2026-08-0' + first.length; r[1] = first; r[2] = last; r[4] = email; r[5] = 'https://drive.google.com/open?id=ABCDEFGHIJKLMNOPQRSTUVWX' + first; r[6] = '0412 000 00' + first.length; r[8] = 'Kenmore Ward'; r[9] = 'Brisbane Stake'; r[18] = 'Yes'; r[19] = '10:00 AM'; r[22] = 'Yes'; r[23] = 'Halal'; r[24] = 'Yes'; r[25] = 'Peanuts'; r[26] = 'Asthma'; Object.assign(r, extra || {}); return r; };
+  const src = gas.makeSpreadsheet({ 'DO NOT EDIT!!! LIVE DATA': [formHead, mk('Ana', 'Lee', 'ana@x.com'), mk('Ben', 'Ng', 'ben@x.com'), mk('', '', '')] });
+  const g = gas.load({ Activities: fixture.Activities }, { SRC: src });
+  g._props.SOURCE_SHEET_ID = 'SRC';
+  let res = g.syncFromForm(); assert.ok(res.ok, JSON.stringify(res)); assert.strictEqual(res.added, 2);
+  let list = g.get({ action: 'list' }).registrants;
+  assert.deepStrictEqual(list.map(x => x.id), ['YSA-0001', 'YSA-0002']);
+  const ana = list[0]; assert.strictEqual(ana.name, 'Ana Lee'); assert.strictEqual(ana.ward, 'Kenmore Ward');
+  assert.strictEqual(ana.allergy, 'Peanuts'); assert.strictEqual(ana.dietary, 'Halal'); assert.ok(ana.medical); assert.ok(ana.needsPickup);
+  assert.ok(String(ana.photo).indexOf('drive.google.com/thumbnail') !== -1, ana.photo);
+  // app writes survive a re-import; edits flow through; new people get the next ID
+  assert.ok(g.post({ action: 'checkin', id: 'YSA-0001', by: 'Ella' }).ok);
+  const sheetRows = src.getSheetByName('DO NOT EDIT!!! LIVE DATA')._data();
+  sheetRows[1][8] = 'Toowong Ward';
+  sheetRows.push(mk('Cara', 'Tui', 'cara@x.com'));
+  res = g.syncFromForm(); assert.strictEqual(res.added, 1); assert.strictEqual(res.updated, 1);
+  list = g.get({ action: 'list' }).registrants;
+  assert.strictEqual(list.length, 3); assert.strictEqual(list[2].id, 'YSA-0003');
+  assert.strictEqual(list[0].ward, 'Toowong Ward'); assert.ok(list[0].checkedIn); assert.strictEqual(list[0].checkedInBy, 'Ella');
+  res = g.syncFromForm(); assert.strictEqual(res.added + res.updated, 0, 'idempotent');
+  // search works on imported phone numbers
+  assert.ok(g.get({ action: 'search', q: '0412 000 004' }).results.some(x => x.id === 'YSA-0003'));
+});
 t('unknown action', () => { const g = fresh(); assert.strictEqual(g.post({ action: 'nope' }).ok, false); });
 
 if (require.main === module) {
