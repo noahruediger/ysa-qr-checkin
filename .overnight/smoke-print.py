@@ -1,0 +1,16 @@
+# SMOKE_EXTRA: laptop print preview reacts to options.
+if label == 'laptop':
+    pg.locator('[data-action="selectTab"][data-tab="print"]').first.click(); pg.wait_for_timeout(600)
+    if not pg.locator('#printPreview .print-card').count(): errors.append('print preview has no cards')
+    pg.screenshot(path=f'{out}/{label}-print-preview.png')
+    n1 = pg.locator('#printPreview .print-card').count()
+    pg.select_option('#presetSelect-lanyard', 'proof'); pg.wait_for_timeout(600)
+    n2 = pg.locator('#printPreview .print-card').count()
+    if n2 <= n1: errors.append(f'preview did not change with layout ({n1} -> {n2})')
+    q = pg.locator('[data-pfield="nameSize"]')
+    q.fill('30'); pg.wait_for_timeout(300)
+    pg.screenshot(path=f'{out}/{label}-print-preview-proof.png')
+    pg.locator('.print-row input[type=checkbox]').nth(2).check(); pg.wait_for_timeout(400)
+    info = pg.locator('#printPreviewInfo').inner_text()
+    if 'Page 1 of 1' not in info: errors.append('preview info after selecting: ' + info)
+    pg.select_option('#presetSelect-lanyard', 'lanyard4')

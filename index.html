@@ -1078,86 +1078,105 @@
     body.printing > *:not(.print-sheet) { display: none !important; }
     body.printing { background: #fff; margin: 0; }
     .print-sheet { display: block !important; }
-    .print-page {
-      width: 210mm;
-      height: 296mm;               /* a hair under 297mm so a full page never spills into a blank one */
-      display: grid;               /* columns / rows / gap are set per print layout from JS */
-      justify-content: center;
-      align-content: center;
-      break-after: page;
-      page-break-after: always;
-      overflow: hidden;
-    }
-    .print-page:last-child { break-after: auto; page-break-after: auto; }
-    .print-card {
-      width: var(--cw, 82mm);
-      height: var(--ch, 130mm);
-      box-sizing: border-box;
-      padding: var(--top, 17mm) 6mm 6mm;   /* top space keeps the lanyard slot / clip area clear */
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      color: #111;
-      background: #fff;
-      outline: 0.25mm dashed #aaa; /* cut line, drawn just outside the card edge */
-      outline-offset: 0.5mm;
-    }
-    .print-sheet.no-cut .print-card { outline: none; }
-    .print-card-event { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6.5pt; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #666; }
-    .print-card-name { font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: var(--ns, 22pt); line-height: 1.08; margin-top: 4mm; overflow-wrap: anywhere; }
-    .print-card-team { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 10pt; font-weight: 600; letter-spacing: 0.04em; color: #333; margin-top: 2mm; }
-    .print-card canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
-    .print-card-dietary {
-      display: inline-flex;
-      align-items: center;
-      gap: 1.5mm;
-      margin-top: 3mm;
-      padding: 0.9mm 3.5mm;
-      border: 0.35mm solid #111;
-      border-radius: 999px;
-      font-family: "IBM Plex Sans", Arial, sans-serif;
-      font-size: 8pt;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      color: #111;
-    }
-    .print-card-id { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 8.5pt; color: #555; margin-top: auto; }
-    .print-card-namebox {
-      position: relative;
-      width: 100%;
-      height: calc(var(--ns, 22pt) * 2.4);
-      min-height: 14mm;
-      margin-top: 3mm;
-      border: 0.45mm solid #111;
-      border-radius: 2mm;
-    }
-    .print-card-namebox span {
-      position: absolute; top: 1mm; left: 2mm;
-      font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6pt; font-weight: 600;
-      letter-spacing: 0.12em; text-transform: uppercase; color: #777;
-    }
-    .print-card.is-blank canvas { margin-top: 6mm; }
+  }
+  /* Card + page styles: used for the real print (inside .print-sheet, hidden on screen) and for the
+     on-screen preview on the Print tab (inside .print-preview-frame). */
+  .print-page {
+    width: 210mm;
+    height: 296mm;               /* a hair under 297mm so a full page never spills into a blank one */
+    display: grid;               /* columns / rows / gap are set per print layout from JS */
+    justify-content: center;
+    align-content: center;
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-card {
+    width: var(--cw, 82mm);
+    height: var(--ch, 130mm);
+    box-sizing: border-box;
+    padding: var(--top, 17mm) 6mm 6mm;   /* top space keeps the lanyard slot / clip area clear */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: #111;
+    background: #fff;
+    outline: 0.25mm dashed #aaa; /* cut line, drawn just outside the card edge */
+    outline-offset: 0.5mm;
+  }
+  .no-cut .print-card { outline: none; }
+  .print-card-event { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6.5pt; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #666; }
+  .print-card-name { font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: var(--ns, 22pt); line-height: 1.08; margin-top: 4mm; overflow-wrap: anywhere; }
+  .print-card-team { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 10pt; font-weight: 600; letter-spacing: 0.04em; color: #333; margin-top: 2mm; }
+  .print-card canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
+  .print-card-dietary {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5mm;
+    margin-top: 3mm;
+    padding: 0.9mm 3.5mm;
+    border: 0.35mm solid #111;
+    border-radius: 999px;
+    font-family: "IBM Plex Sans", Arial, sans-serif;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #111;
+  }
+  .print-card-allergy { margin-top: 1.5mm; background: #111; color: #fff; }
+  .print-card-id { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 8.5pt; color: #555; margin-top: auto; }
+  .print-card-namebox {
+    position: relative;
+    width: 100%;
+    height: calc(var(--ns, 22pt) * 2.4);
+    min-height: 14mm;
+    margin-top: 3mm;
+    border: 0.45mm solid #111;
+    border-radius: 2mm;
+  }
+  .print-card-namebox span {
+    position: absolute; top: 1mm; left: 2mm;
+    font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6pt; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: #777;
+  }
+  .print-card.is-blank canvas { margin-top: 6mm; }
 
-    /* fold-over photo layout */
-    .fold-page { position: relative; width: 210mm; height: 296mm; overflow: hidden; break-after: page; page-break-after: always; background: #fff; }
-    .fold-page:last-child { break-after: auto; page-break-after: auto; }
-    .fold-strip { position: absolute; left: 0; display: flex; width: calc(var(--cw, 82mm) * 2); height: var(--ch, 130mm); }
-    .fold-panel { width: var(--cw, 82mm); height: var(--ch, 130mm); box-sizing: border-box; padding: var(--top, 17mm) 7mm 7mm;
-      display: flex; flex-direction: column; align-items: center; text-align: center; color: #111; background: #fff; }
-    .fold-front canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
-    .fold-photo { width: calc(var(--cw, 82mm) - 18mm); height: calc((var(--cw, 82mm) - 18mm) * 1.25); max-height: calc(var(--ch, 130mm) - var(--top, 17mm) - 20mm);
-      object-fit: cover; border-radius: 2mm; display: block; }
-    .fold-photo-empty { display: flex; align-items: center; justify-content: center; border: 0.4mm dashed #999;
-      font: 700 10pt "IBM Plex Sans", Arial, sans-serif; letter-spacing: 0.2em; color: #999; box-sizing: border-box; }
-    .fold-photo-name { font: 700 10pt "IBM Plex Sans", Arial, sans-serif; margin-top: 3mm; }
-    .fold-guide { position: absolute; }
-    .fold-guide-v { border-left: 0.3mm dashed #999; }
-    .fold-guide-h { border-top: 0.3mm dashed #999; }
-    .fold-guide-fold { border-left: 0.3mm dotted #bbb; }
-    .fold-label { position: absolute; font: 6pt Arial, sans-serif; color: #999; white-space: nowrap; }
-    .print-sheet.is-fold .print-card { outline: none; }
-    .print-card.is-blank .print-card-id { font-size: 11pt; font-weight: 600; color: #111; }
+  /* fold-over photo layout */
+  .fold-page { position: relative; width: 210mm; height: 296mm; overflow: hidden; break-after: page; page-break-after: always; background: #fff; }
+  .fold-page:last-child { break-after: auto; page-break-after: auto; }
+  .fold-strip { position: absolute; left: 0; display: flex; width: calc(var(--cw, 82mm) * 2); height: var(--ch, 130mm); }
+  .fold-panel { width: var(--cw, 82mm); height: var(--ch, 130mm); box-sizing: border-box; padding: var(--top, 17mm) 7mm 7mm;
+    display: flex; flex-direction: column; align-items: center; text-align: center; color: #111; background: #fff; }
+  .fold-front canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
+  .fold-photo { width: calc(var(--cw, 82mm) - 18mm); height: calc((var(--cw, 82mm) - 18mm) * 1.25); max-height: calc(var(--ch, 130mm) - var(--top, 17mm) - 20mm);
+    object-fit: cover; border-radius: 2mm; display: block; }
+  .fold-photo-empty { display: flex; align-items: center; justify-content: center; border: 0.4mm dashed #999;
+    font: 700 10pt "IBM Plex Sans", Arial, sans-serif; letter-spacing: 0.2em; color: #999; box-sizing: border-box; }
+  .fold-photo-name { font: 700 10pt "IBM Plex Sans", Arial, sans-serif; margin-top: 3mm; }
+  .fold-guide { position: absolute; }
+  .fold-guide-v { border-left: 0.3mm dashed #999; }
+  .fold-guide-h { border-top: 0.3mm dashed #999; }
+  .fold-guide-fold { border-left: 0.3mm dotted #bbb; }
+  .fold-label { position: absolute; font: 6pt Arial, sans-serif; color: #999; white-space: nowrap; }
+  .is-fold .print-card { outline: none; }
+  .print-card.is-blank .print-card-id { font-size: 11pt; font-weight: 600; color: #111; }
+
+  /* ---------- Print tab live preview (laptop) ---------- */
+  .print-layout { display: flex; flex-direction: column; gap: 14px; }
+  .print-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .print-preview-col { display: none; }
+  .print-preview-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; color: var(--muted); }
+  .print-preview-head strong { color: var(--ink); font-size: 13.5px; }
+  .print-preview-frame { position: relative; overflow: hidden; border-radius: 4px; box-shadow: 0 2px 14px rgba(0,0,0,0.18); background: #fff; }
+  .print-preview-holder { position: absolute; top: 0; left: 0; transform-origin: 0 0; width: 210mm; }
+  .print-preview-holder .print-page, .print-preview-holder .fold-page { background: #fff; }
+  @media (min-width: 980px) {
+    .print-layout { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 520px); gap: 28px; align-items: start; }
+    .print-preview-col { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; }
+    .print-layout .print-list { max-height: 38vh; min-height: 200px; overflow-y: auto; padding-right: 4px; }
+    .print-layout .print-actionbar { position: static; margin: 0; padding: 12px 0 0; background: none; }
   }
 
   /* ---------- Walk-in sign-up ---------- */
@@ -3768,7 +3787,7 @@
     { id: "fold2", name: "Fold-over with photo · 2 per page", fold: true, cardW: 82, cardH: 130, gap: 0, qr: 50, nameSize: 22, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true },
     { id: "walkin4", name: "Walk-in card 82×130 · 4 per page", cardW: 82, cardH: 130, gap: 10, qr: 50, nameSize: 26, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true }
   ];
-  var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showId", "fold"];
+  var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showAllergy", "showId", "fold"];
   var customPresets = [];
   try { customPresets = JSON.parse(localStorage.getItem("qrCheckinPrintPresets") || "[]") || []; } catch (e) { customPresets = []; }
 
@@ -3802,7 +3821,7 @@
       qr: num(o.qr, 15, 150, 50),
       nameSize: num(o.nameSize, 8, 60, 22),
       topPad: num(o.topPad, 0, 60, 17),
-      cutLines: !!o.cutLines, showEvent: !!o.showEvent, showTeam: !!o.showTeam, showDietary: !!o.showDietary, showId: !!o.showId
+      cutLines: !!o.cutLines, showEvent: !!o.showEvent, showTeam: !!o.showTeam, showDietary: !!o.showDietary, showAllergy: !!o.showAllergy, showId: !!o.showId
     };
   }
   function presetSettings(pr) { var o = {}; PRESET_FIELDS.forEach(function (f) { o[f] = pr[f]; }); return normalizeSettings(o); }
@@ -3900,7 +3919,8 @@
     var toggle = function (f, label) {
       return '<label class="preset-toggle"><input type="checkbox" data-pfield="' + f + '"' + (st[f] ? ' checked' : '') + '>' + label + '</label>';
     };
-    var edit = sc.edit
+    var keepOpen = scope === "lanyard" && isWide();   // laptop: options stay open next to the preview
+    var edit = (sc.edit || keepOpen)
       ? '<div class="preset-edit">' +
           '<div class="preset-grid">' +
             numField("cardW", "Card width", "mm") + numField("cardH", "Card height", "mm") +
@@ -3911,7 +3931,7 @@
             (isWalkin
               ? toggle("showEvent", "Event title") + toggle("cutLines", "Cut lines")
               : toggle("showEvent", "Event title") + toggle("showTeam", "Team name") +
-                toggle("showDietary", "Dietary pill") + toggle("showId", "ID under QR") +
+                toggle("showDietary", "Dietary pill") + toggle("showAllergy", "Allergy pill") + toggle("showId", "ID under QR") +
                 toggle("cutLines", st.fold ? "Cut & fold lines" : "Cut lines")) +
           '</div>' +
           '<div class="preset-actions">' +
@@ -3929,7 +3949,7 @@
         '<span class="preset-label">' + (isWalkin ? 'Blank card layout' : 'Print layout') + '</span>' +
         '<select class="text-input preset-select" id="presetSelect-' + scope + '" data-preset-select="1" aria-label="' + (isWalkin ? 'Blank card layout' : 'Print layout preset') + '">' + opts + '</select>' +
         '<div class="preset-summary">' + summary + '</div>' +
-        '<button class="back-link" data-action="presetToggleEdit" type="button">' + (sc.edit ? 'Hide options ▴' : 'Customise ▾') + '</button>' +
+        (keepOpen ? '' : '<button class="back-link" data-action="presetToggleEdit" type="button">' + (sc.edit ? 'Hide options ▴' : 'Customise ▾') + '</button>') +
         edit +
       '</div>';
   }
@@ -3960,6 +3980,7 @@
       if (st.showTeam && r.team) { var tm = document.createElement("div"); tm.className = "print-card-team"; tm.textContent = r.team; front.appendChild(tm); }
       front.appendChild(makeQrCanvas(r.id, 400));
       if (st.showDietary && r.dietary) { var dt = document.createElement("div"); dt.className = "print-card-dietary"; dt.innerHTML = "&#127869; DIETARY"; front.appendChild(dt); }
+      if (st.showAllergy && r.allergy) { var al = document.createElement("div"); al.className = "print-card-dietary print-card-allergy"; al.innerHTML = "&#9888; ALLERGY"; front.appendChild(al); }
       if (st.showId) { var idEl = document.createElement("div"); idEl.className = "print-card-id"; idEl.textContent = r.id; front.appendChild(idEl); }
 
       var back = document.createElement("div");
@@ -4036,8 +4057,10 @@
     }, 8000);
   }
 
-  function renderPrintCards(ids, st) {
-    var container = document.getElementById("printSheet");
+  // target: where to draw (default: the hidden #printSheet that window.print() uses). The Print
+  // tab's live preview draws page 1 into its own box with the same code, so what you see is what prints.
+  function renderPrintCards(ids, st, target) {
+    var container = target || document.getElementById("printSheet");
     container.innerHTML = "";
     container.classList.toggle("is-fold", !!st.fold);
     if (st.fold) { renderFoldCards(ids, st, container); return; }
@@ -4097,6 +4120,12 @@
         dietEl.innerHTML = "&#127869; DIETARY";
         card.appendChild(dietEl);
       }
+      if (st.showAllergy && r.allergy) {
+        var allergyEl = document.createElement("div");
+        allergyEl.className = "print-card-dietary print-card-allergy";
+        allergyEl.innerHTML = "&#9888; ALLERGY";
+        card.appendChild(allergyEl);
+      }
       if (st.showId) {
         var idEl = document.createElement("div"); idEl.className = "print-card-id"; idEl.textContent = r.id;
         card.appendChild(idEl);
@@ -4106,6 +4135,41 @@
       onPage++;
     });
   }
+
+  // ---------- live preview of one printed page (Print tab, laptop) ----------
+  var MM_PX = 96 / 25.4;
+  function isWide() { try { return window.matchMedia("(min-width: 980px)").matches; } catch (e) { return false; } }
+  function previewPeople(perPage) {
+    var chosen = state.registrants.filter(function (r) { return view.selected.has(r.id); });
+    if (chosen.length) return { ids: chosen.map(function (r) { return r.id; }), sample: false, total: chosen.length };
+    // Nothing ticked yet: show real people so names, teams and dietary badges look realistic.
+    var sample = state.registrants.filter(function (r) { return !r.walkin; }).slice(0, perPage);
+    return { ids: sample.map(function (r) { return r.id; }), sample: true, total: 0 };
+  }
+  function renderPrintPreview() {
+    var frame = document.getElementById("printPreview");
+    if (!frame) return;
+    var st = PSCOPE.lanyard.st, g = gridFor(st);
+    var pick = previewPeople(g.perPage);
+    var holder = document.createElement("div");
+    holder.className = "print-preview-holder";
+    renderPrintCards(pick.ids.slice(0, g.perPage), st, holder);
+    frame.innerHTML = "";
+    frame.appendChild(holder);
+    var scale = frame.clientWidth / (210 * MM_PX);
+    holder.style.transform = "scale(" + scale + ")";
+    frame.style.height = Math.round(297 * MM_PX * scale) + "px";
+    var head = document.getElementById("printPreviewInfo");
+    if (head) {
+      var pages = pick.total ? Math.ceil(pick.total / g.perPage) : 0;
+      head.textContent = pick.sample
+        ? "Example page with the first " + Math.min(g.perPage, pick.ids.length) + " people. Tick people to preview them."
+        : "Page 1 of " + pages + " · " + pick.total + " selected";
+    }
+  }
+  window.addEventListener("resize", function () {
+    if (view.screen === "tab" && view.activeTab === "print") renderPrintPreview();
+  });
 
   function finishPrint(ids) {
     lastPrintedBatch = ids.slice();
@@ -4602,6 +4666,8 @@
           '<button class="btn btn-sm btn-danger" data-action="askResetPrinted" type="button">Reset printing</button>' +
         '</div>' +
         (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
+        '<div class="print-layout">' +
+        '<div class="print-col">' +
         presetPanelHtml("lanyard", view.selected.size) +
         '<div class="print-toolbar">' +
           '<input class="text-input" id="printSearch" type="text" placeholder="Search by name or ward" value="' + esc(view.printSearch) + '">' +
@@ -4619,8 +4685,16 @@
           '<button class="btn btn-primary btn-block" data-action="generatePrint" type="button"' + (view.selected.size ? '' : ' disabled') + '>' +
             'Generate &amp; print (' + view.selected.size + ')' +
           '</button>' +
+        '</div>' +
+        '</div>' +
+        // Laptop only (hidden on phones by CSS): one A4 page exactly as it will print, redrawn as you change the layout.
+        '<div class="print-preview-col" aria-label="Print preview">' +
+          '<div class="print-preview-head"><strong>Preview</strong><span id="printPreviewInfo"></span></div>' +
+          '<div class="print-preview-frame" id="printPreview"></div>' +
+        '</div>' +
         '</div>';
 
+      if (isWide()) renderPrintPreview();
       var searchInput = document.getElementById("printSearch");
       if (searchInput) {
         searchInput.addEventListener("input", function () { setPrintSearch(searchInput.value); });
@@ -5334,6 +5408,20 @@
     }
     if (e.target && e.target.id === "resetBtn") resetDemo();
     if (e.target && e.target.id === "connectBtn") connectBackend();
+  });
+
+  // While typing a number in the print options, update the preview right away (the full screen
+  // redraw waits for "change", so the box you're typing in keeps focus).
+  document.addEventListener("input", function (e) {
+    var tgt = e.target;
+    if (!tgt || !tgt.getAttribute || !tgt.getAttribute("data-pfield") || tgt.type === "checkbox") return;
+    if (pscopeOf(tgt) !== "lanyard" || !document.getElementById("printPreview")) return;
+    var f = tgt.getAttribute("data-pfield");
+    if (PRESET_FIELDS.indexOf(f) === -1 || tgt.value === "") return;
+    var o = clone(PSCOPE.lanyard.st);
+    o[f] = tgt.value;
+    PSCOPE.lanyard.st = normalizeSettings(o);
+    renderPrintPreview();
   });
 
   document.addEventListener("change", function (e) {
