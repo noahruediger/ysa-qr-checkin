@@ -58,6 +58,20 @@ t('real form headers are understood (aliases)', () => {
   assert.strictEqual(r.name, 'Jo Smith');
   const c = g.post({ action: 'checkin', id: 'YSA-0001', by: 'X' }); assert.ok(c.ok, JSON.stringify(c));
 });
+t('access code locks GET and POST', () => {
+  const g = fresh(); g._props.ACCESS_CODE = '4321';
+  assert.strictEqual(g.get({ action: 'list' }).error, 'locked');
+  assert.strictEqual(g.post({ action: 'checkin', id: 'YSA-0001' }).error, 'locked');
+  assert.ok(g.get({ action: 'list', key: '4321' }).ok);
+  assert.ok(g.post({ action: 'checkin', id: 'YSA-0001', key: '4321' }).ok);
+});
+t('reset printing is admin only once an Admin exists', () => {
+  const g = fresh();
+  g.post({ action: 'registerStaff', deviceId: 'DA', name: 'Boss', role: 'Admin' });
+  g.post({ action: 'registerStaff', deviceId: 'DB', name: 'Helper', role: 'Other' });
+  assert.strictEqual(g.post({ action: 'resetPrinted', deviceId: 'DB' }).error, 'admin only');
+  assert.ok(g.post({ action: 'resetPrinted', deviceId: 'DA' }).ok);
+});
 t('unknown action', () => { const g = fresh(); assert.strictEqual(g.post({ action: 'nope' }).ok, false); });
 
 if (require.main === module) {

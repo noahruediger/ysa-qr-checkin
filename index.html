@@ -1356,6 +1356,10 @@
     });
   }
 
+  // "https://.../exec?" (plus "key=...&" when this phone has an access code), ready for "action=...".
+  function apiBase() {
+    return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + (ACCESS_KEY ? "key=" + encodeURIComponent(ACCESS_KEY) + "&" : "");
+  }
   // Builds a GET URL for the Sheet script, adding the access code if this phone has one (Settings).
   function apiUrl(params) {
     var q = [];
@@ -1427,7 +1431,7 @@
   }
 
   function apiGet(action) {
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=" + encodeURIComponent(action);
+    var url = apiBase() + "action=" + encodeURIComponent(action);
     setLoading(true);
     return trackedFetch(url).finally(function () { setLoading(false); });
   }
@@ -1540,6 +1544,9 @@
     var s = String(message || "something went wrong").replace(/^Error:\s*/i, "").trim();
     if (/failed to fetch|networkerror|load failed|network request failed|offline/i.test(s)) return "the phone can’t reach the Sheet.";
     if (s === "full") return "that activity is full.";
+    if (s === "locked") return "this Sheet needs an access code. Enter it in Settings, then tap Connect.";
+    if (s === "busy") return "the Sheet is busy. It will retry.";
+    if (s === "admin only") return "only an Admin phone can do that (Settings → This phone → Change).";
     if (s.length > 160) s = s.slice(0, 160) + "…";
     return /[.!?]$/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s.charAt(0).toLowerCase() + s.slice(1) + ".";
   }
@@ -1839,7 +1846,7 @@
     var r = byId(state.registrants, id);
     if (!r || r.details || !BACKEND_URL || detailsLoading[id] === "loading") return;
     detailsLoading[id] = "loading";
-    fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=person&id=" + encodeURIComponent(id))
+    fetch(apiBase() + "action=person&id=" + encodeURIComponent(id))
       .then(function (x) { return x.json(); })
       .then(function (d) {
         if (d && d.ok && d.details) { r.details = normalizeDetails(d.details); delete detailsLoading[id]; }
@@ -2056,7 +2063,7 @@
     if (!force && document.hidden) return;
     heartbeatBusy = true;
     lastHeartbeat = Date.now();
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=heartbeat&deviceId=" + encodeURIComponent(deviceId);
+    var url = apiBase() + "action=heartbeat&deviceId=" + encodeURIComponent(deviceId);
     trackedFetch(url).then(function (d) {
       heartbeatBusy = false;
       if (d && d.ok) {
@@ -2181,7 +2188,7 @@
   }
 
   function listPage(offset, limit) {
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=list&offset=" + offset + "&limit=" + limit;
+    var url = apiBase() + "action=list&offset=" + offset + "&limit=" + limit;
     setLoading(true);
     return trackedFetch(url).finally(function () { setLoading(false); });
   }
@@ -2237,7 +2244,7 @@
     loadAllPeople(bootProgress).then(function (data) {
       backendBusy = false;
       if (!data || data.ok === false) {
-        var why = data && data.error ? data.error : "check the URL";
+        var why = data && data.error ? friendlyErr(data.error) : "check the URL";
         setConnStatus("Couldn't load — " + why, false);
         markReachable(false);
         bootFail("Couldn’t load the Sheet — " + why);
@@ -2266,13 +2273,31 @@
 
   function connectBackend() {
     var input = document.getElementById("settingsUrlInput");
+    var keyInput = document.getElementById("settingsKeyInput");
+    if (keyInput) setAccessKey(keyInput.value);
     connectWithUrl((input && input.value || "").trim());
   }
 
-  // Setup QR codes just contain the Apps Script /exec URL.
+  // Access code (optional): if the Sheet script has an ACCESS_CODE set, every request must carry it.
+  function setAccessKey(k) {
+    ACCESS_KEY = String(k || "").trim();
+    try { if (ACCESS_KEY) localStorage.setItem("qrCheckinAccessKey", ACCESS_KEY); else localStorage.removeItem("qrCheckinAccessKey"); } catch (e) { /* fine */ }
+  }
+  // A setup link may carry the code after the URL: https://script.google.com/.../exec#key=1234
+  function splitSetupLink(text) {
+    var t = String(text || "").trim();
+    var m = /^(.*?)#key=([^&#\s]*)$/.exec(t);
+    return m ? { url: m[1], key: decodeURIComponent(m[2]) } : { url: t, key: null };
+  }
+  function setupLink() { return BACKEND_URL + (ACCESS_KEY ? "#key=" + encodeURIComponent(ACCESS_KEY) : ""); }
+
+  // Setup QR codes contain the Apps Script /exec URL (plus #key=... when the Sheet has an access code).
   function isBackendUrl(text) { return /^https:\/\/script\.google(usercontent)?\.com\/\S+$/i.test(String(text || "").trim()); }
 
   function connectWithUrl(url) {
+    var parts = splitSetupLink(url);
+    url = parts.url;
+    if (parts.key !== null) setAccessKey(parts.key);
     if (!url) { setConnStatus("Paste your Apps Script /exec URL above first", false); return; }
     BACKEND_URL = url;
     settingsUrlDraft = url;
@@ -2470,7 +2495,7 @@
     if (img.parentNode) img.parentNode.removeChild(img);
     if (!r || photoRetried[id] || !BACKEND_URL || (r.photo || "").indexOf("data:") === 0) return;
     photoRetried[id] = true;
-    fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(id))
+    fetch(apiBase() + "action=photo&id=" + encodeURIComponent(id))
       .then(function (x) { return x.json(); })
       .then(function (d) {
         if (d && d.ok && d.dataUri) { if (!r.photoOrig) r.photoOrig = r.photo; r.photo = d.dataUri; render(); }
@@ -2493,7 +2518,7 @@
     };
     var viaSheet = function () {
       if (!BACKEND_URL) { done(null); return; }
-      fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&size=full&id=" + encodeURIComponent(r.id))
+      fetch(apiBase() + "action=photo&size=full&id=" + encodeURIComponent(r.id))
         .then(function (x) { return x.json(); })
         .then(function (d) { done(d && d.ok && d.dataUri ? d.dataUri : null); })
         .catch(function () { done(null); });
@@ -2518,7 +2543,7 @@
     var r = byId(state.registrants, view.photoView);
     if (r && !img.getAttribute("data-retried") && BACKEND_URL) {
       img.setAttribute("data-retried", "1");
-      fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&size=full&id=" + encodeURIComponent(r.id))
+      fetch(apiBase() + "action=photo&size=full&id=" + encodeURIComponent(r.id))
         .then(function (x) { return x.json(); })
         .then(function (d) { if (d && d.ok && d.dataUri) { r.photoBig = d.dataUri; img.src = d.dataUri; } else throw 0; })
         .catch(function () { img.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" })); });
@@ -3399,7 +3424,7 @@
     if (!BACKEND_URL || backendBusy) return Promise.resolve(null);
     if (refreshPromise) return refreshPromise;
     lastPeopleRefresh = Date.now();
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=list";
+    var url = apiBase() + "action=list";
     refreshPromise = trackedFetch(url).then(function (data) {
       refreshPromise = null;
       if (!data || data.ok === false || !data.registrants) return data;
@@ -3811,7 +3836,7 @@
         var id = img.getAttribute("data-print-photo-id");
         if (!tried && BACKEND_URL && id) {
           tried = true;
-          fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(id))
+          fetch(apiBase() + "action=photo&id=" + encodeURIComponent(id))
             .then(function (x) { return x.json(); })
             .then(function (d) {
               if (d && d.ok && d.dataUri) { var r = byId(state.registrants, id); if (r) r.photo = d.dataUri; img.src = d.dataUri; }
@@ -4425,6 +4450,8 @@
         '<div class="card">' +
           '<label for="settingsUrlInput" class="screen-sub" style="margin:0 0 6px">Apps Script /exec URL</label>' +
           '<input class="text-input mono" id="settingsUrlInput" type="text" placeholder="Paste your Apps Script /exec URL here" value="' + esc(settingsUrlDraft) + '" autocomplete="off" style="width:100%">' +
+          '<label for="settingsKeyInput" class="screen-sub" style="margin:10px 0 6px;display:block">Access code <span style="color:var(--muted)">(only if the Sheet has one)</span></label>' +
+          '<input class="text-input mono" id="settingsKeyInput" type="text" placeholder="Leave blank if none" value="' + esc(ACCESS_KEY) + '" autocomplete="off" autocapitalize="off" style="width:100%">' +
           '<div style="display:flex;gap:10px;margin-top:10px">' +
             '<button class="btn btn-primary" id="connectBtn" type="button">Connect</button>' +
             '<button class="btn" id="resetBtn" type="button">Reload</button>' +
@@ -4473,7 +4500,7 @@
           '</div>';
         })();
       var shareQrBox = document.getElementById("shareQrBox");
-      if (shareQrBox) shareQrBox.appendChild(makeQrCanvas(view.shareStep === 1 ? APP_SITE_URL : BACKEND_URL, 320));
+      if (shareQrBox) shareQrBox.appendChild(makeQrCanvas(view.shareStep === 1 ? APP_SITE_URL : setupLink(), 320));
 
       var settingsInput = document.getElementById("settingsUrlInput");
       if (settingsInput) {

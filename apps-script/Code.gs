@@ -242,8 +242,35 @@ function jsonOut_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// Optional access code: set Script Property ACCESS_CODE (Project Settings > Script Properties) and
+// every request must carry the same code as "key", or it gets { ok:false, error:'locked' }.
+// No ACCESS_CODE = open to anyone with the /exec link (the old behaviour).
+function keyOk_(given) {
+  var code = PropertiesService.getScriptProperties().getProperty('ACCESS_CODE');
+  if (!code) return true;
+  return String(given == null ? '' : given).trim() === String(code).trim();
+}
+
+// Admin check for risky actions (Reset printing): the phone's Device ID must be on the Staff tab
+// with Role = Admin. If nobody is Admin yet, everyone is allowed (so a new Sheet isn't stuck).
+function isAdminDevice_(deviceId) {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Staff');
+  if (!sh || sh.getLastRow() < 2) return true;
+  var map = headerMap_(sh);
+  if (!map['Role'] || !map['Device ID']) return true;
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  var anyAdmin = false, me = false;
+  vals.forEach(function (row) {
+    var admin = String(row[map['Role'] - 1]).trim() === 'Admin';
+    if (admin) anyAdmin = true;
+    if (admin && String(row[map['Device ID'] - 1]).trim() === String(deviceId || '').trim()) me = true;
+  });
+  return !anyAdmin || me;
+}
+
 function doGet(e) {
   try {
+    if (!keyOk_(e.parameter.key)) return jsonOut_({ ok: false, error: 'locked' });
     var action = (e.parameter.action || 'list');
     if (action === 'list') {
       var reg = readRegistrants_();
@@ -289,6 +316,7 @@ function doPost(e) {
     try { body = JSON.parse(e.postData.contents); } catch (parseErr) {
       return jsonOut_({ ok: false, error: 'Bad JSON body: ' + parseErr });
     }
+    if (!keyOk_(body.key)) return jsonOut_({ ok: false, error: 'locked' });
     var out = handlePost_(body);
     if (out && out.ok && REV_ACTIONS[body.action]) {
       bumpRev_(body, out);      // Live.gs
@@ -425,6 +453,7 @@ function handlePost_(body) {
 
   // Print tab "Reset printing": everyone back to not printed, except walk-ins (their blank card is their lanyard).
   if (action === 'resetPrinted') {
+    if (!isAdminDevice_(body.deviceId)) return { ok: false, error: 'admin only' };
     var qpCol = col_(map, 'QR Printed'), qaCol = col_(map, 'QR Printed At'), wkCol = map['Walk-in'];
     if (!reg.rows.length) return ({ ok: true, reset: 0 });
     var resetCount = 0;
