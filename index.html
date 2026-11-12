@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>QR Check-In</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2b6e7a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="QR Check-In">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>html,body{margin:0;padding:0}</style>
 </head>
 <body>
@@ -285,6 +293,39 @@
   .boot-error { color: var(--critical); font-size: 13px; max-width: 300px; overflow-wrap: anywhere; }
   .boot-actions { display: flex; gap: 10px; }
 
+  /* ---------- "Already checked in" warning on a scan ---------- */
+  .already-warn {
+    display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-m);
+    background: var(--warning-tint); color: var(--warning); border: 1.5px solid var(--warning); font-size: 13px;
+  }
+  .already-warn strong { font-size: 14.5px; }
+  .already-warn span { color: var(--ink-soft); }
+  .pill-strong { font-weight: 700; }
+  .pill-btn { border: 0; cursor: pointer; font: inherit; }
+
+  /* ---------- Lost-person alert (every phone) ---------- */
+  .alert-stack {
+    position: absolute; top: 40px; left: 10px; right: 10px; z-index: 26;
+    display: flex; flex-direction: column; gap: 6px; pointer-events: none;
+  }
+  .alert-stack[hidden] { display: none; }
+  .lostbar {
+    pointer-events: auto; display: flex; align-items: stretch;
+    background: var(--critical); color: #fff; border-radius: var(--radius-m);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25); overflow: hidden;
+    animation: alertIn 0.25s ease-out;
+  }
+  @keyframes alertIn { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .lostbar-main {
+    flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 1px;
+    align-items: center; text-align: left; padding: 8px 10px; background: none; border: 0; color: inherit; cursor: pointer; font: inherit;
+  }
+  .lostbar-tag { grid-row: span 2; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; background: rgba(255,255,255,0.2); padding: 3px 6px; border-radius: 4px; }
+  .lostbar-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lostbar-meta { font-size: 11.5px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lostbar-x { flex: none; width: 40px; background: rgba(0,0,0,0.12); border: 0; color: #fff; font-size: 20px; cursor: pointer; }
+  .lostbar-more { pointer-events: auto; align-self: flex-end; background: var(--critical); color: #fff; border: 0; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+
   .phone-content {
     flex: 1;
     min-height: 0;
@@ -457,7 +498,7 @@
   .lookup-item.has-avatar { flex-direction: row; align-items: center; gap: 10px; }
   .lookup-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .lost-row-info.has-avatar { flex-direction: row; align-items: center; gap: 10px; }
-  .id-row-main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+  .id-row-main { display: flex; align-items: center; gap: 12px; min-width: min(220px, 100%); flex: 1 1 220px; }
   .id-row { flex-wrap: wrap; }
   .avatar-lg { width: 56px; height: 56px; font-size: 20px; }
 
@@ -663,18 +704,6 @@
   }
   .tab-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
-  .activity-item {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    padding: 10px 12px;
-    background: var(--surface-2);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .activity-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-  .activity-name { font-size: 13.5px; font-weight: 500; }
-  .activity-time { font-size: 11px; color: var(--muted); }
   .capacity-row { display: flex; align-items: center; gap: 8px; }
   .capacity-track {
     flex: 1;
@@ -861,6 +890,89 @@
     .phone-tabbar { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   }
 
+  .team-row { display: grid; grid-template-columns: minmax(80px, 34%) 1fr auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+  .team-row-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* ---------- Person page columns (phone: one column, laptop: two) ---------- */
+  .person-layout { display: flex; flex-direction: column; gap: 14px; }
+  .person-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  /* ---------- Tablet: use the whole screen, keep the bottom tab bar ---------- */
+  @media (min-width: 521px) and (max-width: 979px) {
+    .page { padding: 0; gap: 0; max-width: none; }
+    .app-wrap { gap: 0; }
+    html, body { overflow: hidden; }
+    .app-shell { position: fixed; inset: 0; max-width: none; height: auto; margin: 0; border: none; border-radius: 0; box-shadow: none; }
+    .phone-content { padding: 52px max(24px, calc((100% - 760px) / 2)) 24px; }
+    .phone-tabbar { padding-left: max(12px, calc((100% - 760px) / 2)); padding-right: max(12px, calc((100% - 760px) / 2)); }
+    .tabbar-btn { font-size: 11px; }
+    .tabbar-btn svg { width: 20px; height: 20px; }
+  }
+
+  /* ---------- Laptop: full screen, sidebar on the left, content uses the width ---------- */
+  @media (min-width: 980px) {
+    .page { padding: 0; gap: 0; max-width: none; }
+    .app-wrap { gap: 0; }
+    html, body { overflow: hidden; }
+    .app-shell {
+      position: fixed; inset: 0; max-width: none; height: auto; margin: 0;
+      border: none; border-radius: 0; box-shadow: none;
+      display: grid; grid-template-columns: 224px 1fr; grid-template-rows: 1fr;
+    }
+    .phone-tabbar {
+      grid-column: 1; grid-row: 1;
+      flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 4px;
+      padding: 20px 14px; border-top: none; border-right: 1px solid var(--line); background: var(--surface-2);
+    }
+    .phone-tabbar::before {
+      content: "QR Check-In"; display: block; padding: 2px 10px 16px;
+      font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 600; color: var(--ink);
+    }
+    .tabbar-btn {
+      flex: none; flex-direction: row; justify-content: flex-start; gap: 12px;
+      font-size: 14px; padding: 10px 12px; border-radius: var(--radius-m); text-align: left; line-height: 1.2;
+    }
+    .tabbar-btn svg { width: 20px; height: 20px; flex: none; }
+    .tabbar-btn:hover { background: var(--surface); color: var(--ink); }
+    .tabbar-btn.active { background: var(--accent-tint); color: var(--accent-ink); font-weight: 600; }
+    .tabbar-btn { order: 1; }
+    .tabbar-scan {
+      order: 0; width: auto; height: 46px; margin: 0 0 14px; border-radius: var(--radius-m); border: none;
+      gap: 10px; font-family: inherit; font-size: 15px; font-weight: 600;
+    }
+    .tabbar-scan::after { content: "Scan / enter ID"; }
+    .phone-content {
+      grid-column: 2; grid-row: 1;
+      padding: 56px max(32px, calc((100% - 1200px) / 2)) 40px;
+    }
+    .sync-box { right: 24px; top: 16px; }
+    .alert-stack { left: auto; right: 24px; top: 52px; width: min(520px, calc(100% - 280px)); }
+    .loading-bar { left: 224px; }
+    .boot-screen { grid-column: 1 / -1; }
+    .screen-title { font-size: 28px; }
+
+    /* Lists become grids of cards */
+    .screen-tab-people .lanyard-list,
+    .screen-tab-other .lanyard-list,
+    .screen-other .lanyard-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+    .screen-tab-people #peopleSearch { max-width: 560px; font-size: 16px; }
+    .screen-tab-settings > .card { max-width: 760px; }
+
+    /* Dashboard: stats across the top, panels side by side */
+    .screen-tab-dashboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 16px; }
+    .screen-tab-dashboard > .screen-title { grid-column: 1 / -1; }
+    .screen-tab-dashboard > .lost-panel { grid-column: 1 / -1; }
+    .screen-tab-dashboard .stat-grid { grid-column: 1 / -1; grid-template-columns: repeat(4, 1fr); }
+
+    /* Person: two columns */
+    .person-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+    .person-col-a { position: sticky; top: 0; }
+
+    /* Camera / manual entry: keep the video a sensible size */
+    .screen-camera { max-width: 720px; margin: 0 auto; width: 100%; }
+  }
+
   /* ---------- QR code on a person's full page ---------- */
   .person-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .person-qr-box { background: #fff; padding: 10px; border-radius: var(--radius-m); border: 1px solid var(--line); line-height: 0; }
@@ -954,86 +1066,105 @@
     body.printing > *:not(.print-sheet) { display: none !important; }
     body.printing { background: #fff; margin: 0; }
     .print-sheet { display: block !important; }
-    .print-page {
-      width: 210mm;
-      height: 296mm;               /* a hair under 297mm so a full page never spills into a blank one */
-      display: grid;               /* columns / rows / gap are set per print layout from JS */
-      justify-content: center;
-      align-content: center;
-      break-after: page;
-      page-break-after: always;
-      overflow: hidden;
-    }
-    .print-page:last-child { break-after: auto; page-break-after: auto; }
-    .print-card {
-      width: var(--cw, 82mm);
-      height: var(--ch, 130mm);
-      box-sizing: border-box;
-      padding: var(--top, 17mm) 6mm 6mm;   /* top space keeps the lanyard slot / clip area clear */
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      color: #111;
-      background: #fff;
-      outline: 0.25mm dashed #aaa; /* cut line, drawn just outside the card edge */
-      outline-offset: 0.5mm;
-    }
-    .print-sheet.no-cut .print-card { outline: none; }
-    .print-card-event { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6.5pt; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #666; }
-    .print-card-name { font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: var(--ns, 22pt); line-height: 1.08; margin-top: 4mm; overflow-wrap: anywhere; }
-    .print-card-team { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 10pt; font-weight: 600; letter-spacing: 0.04em; color: #333; margin-top: 2mm; }
-    .print-card canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
-    .print-card-dietary {
-      display: inline-flex;
-      align-items: center;
-      gap: 1.5mm;
-      margin-top: 3mm;
-      padding: 0.9mm 3.5mm;
-      border: 0.35mm solid #111;
-      border-radius: 999px;
-      font-family: "IBM Plex Sans", Arial, sans-serif;
-      font-size: 8pt;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      color: #111;
-    }
-    .print-card-id { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 8.5pt; color: #555; margin-top: auto; }
-    .print-card-namebox {
-      position: relative;
-      width: 100%;
-      height: calc(var(--ns, 22pt) * 2.4);
-      min-height: 14mm;
-      margin-top: 3mm;
-      border: 0.45mm solid #111;
-      border-radius: 2mm;
-    }
-    .print-card-namebox span {
-      position: absolute; top: 1mm; left: 2mm;
-      font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6pt; font-weight: 600;
-      letter-spacing: 0.12em; text-transform: uppercase; color: #777;
-    }
-    .print-card.is-blank canvas { margin-top: 6mm; }
+  }
+  /* Card + page styles: used for the real print (inside .print-sheet, hidden on screen) and for the
+     on-screen preview on the Print tab (inside .print-preview-frame). */
+  .print-page {
+    width: 210mm;
+    height: 296mm;               /* a hair under 297mm so a full page never spills into a blank one */
+    display: grid;               /* columns / rows / gap are set per print layout from JS */
+    justify-content: center;
+    align-content: center;
+    break-after: page;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-card {
+    width: var(--cw, 82mm);
+    height: var(--ch, 130mm);
+    box-sizing: border-box;
+    padding: var(--top, 17mm) 6mm 6mm;   /* top space keeps the lanyard slot / clip area clear */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: #111;
+    background: #fff;
+    outline: 0.25mm dashed #aaa; /* cut line, drawn just outside the card edge */
+    outline-offset: 0.5mm;
+  }
+  .no-cut .print-card { outline: none; }
+  .print-card-event { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6.5pt; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #666; }
+  .print-card-name { font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-size: var(--ns, 22pt); line-height: 1.08; margin-top: 4mm; overflow-wrap: anywhere; }
+  .print-card-team { font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 10pt; font-weight: 600; letter-spacing: 0.04em; color: #333; margin-top: 2mm; }
+  .print-card canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
+  .print-card-dietary {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5mm;
+    margin-top: 3mm;
+    padding: 0.9mm 3.5mm;
+    border: 0.35mm solid #111;
+    border-radius: 999px;
+    font-family: "IBM Plex Sans", Arial, sans-serif;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #111;
+  }
+  .print-card-allergy { margin-top: 1.5mm; background: #111; color: #fff; }
+  .print-card-id { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 8.5pt; color: #555; margin-top: auto; }
+  .print-card-namebox {
+    position: relative;
+    width: 100%;
+    height: calc(var(--ns, 22pt) * 2.4);
+    min-height: 14mm;
+    margin-top: 3mm;
+    border: 0.45mm solid #111;
+    border-radius: 2mm;
+  }
+  .print-card-namebox span {
+    position: absolute; top: 1mm; left: 2mm;
+    font-family: "IBM Plex Sans", Arial, sans-serif; font-size: 6pt; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: #777;
+  }
+  .print-card.is-blank canvas { margin-top: 6mm; }
 
-    /* fold-over photo layout */
-    .fold-page { position: relative; width: 210mm; height: 296mm; overflow: hidden; break-after: page; page-break-after: always; background: #fff; }
-    .fold-page:last-child { break-after: auto; page-break-after: auto; }
-    .fold-strip { position: absolute; left: 0; display: flex; width: calc(var(--cw, 82mm) * 2); height: var(--ch, 130mm); }
-    .fold-panel { width: var(--cw, 82mm); height: var(--ch, 130mm); box-sizing: border-box; padding: var(--top, 17mm) 7mm 7mm;
-      display: flex; flex-direction: column; align-items: center; text-align: center; color: #111; background: #fff; }
-    .fold-front canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
-    .fold-photo { width: calc(var(--cw, 82mm) - 18mm); height: calc((var(--cw, 82mm) - 18mm) * 1.25); max-height: calc(var(--ch, 130mm) - var(--top, 17mm) - 20mm);
-      object-fit: cover; border-radius: 2mm; display: block; }
-    .fold-photo-empty { display: flex; align-items: center; justify-content: center; border: 0.4mm dashed #999;
-      font: 700 10pt "IBM Plex Sans", Arial, sans-serif; letter-spacing: 0.2em; color: #999; box-sizing: border-box; }
-    .fold-photo-name { font: 700 10pt "IBM Plex Sans", Arial, sans-serif; margin-top: 3mm; }
-    .fold-guide { position: absolute; }
-    .fold-guide-v { border-left: 0.3mm dashed #999; }
-    .fold-guide-h { border-top: 0.3mm dashed #999; }
-    .fold-guide-fold { border-left: 0.3mm dotted #bbb; }
-    .fold-label { position: absolute; font: 6pt Arial, sans-serif; color: #999; white-space: nowrap; }
-    .print-sheet.is-fold .print-card { outline: none; }
-    .print-card.is-blank .print-card-id { font-size: 11pt; font-weight: 600; color: #111; }
+  /* fold-over photo layout */
+  .fold-page { position: relative; width: 210mm; height: 296mm; overflow: hidden; break-after: page; page-break-after: always; background: #fff; }
+  .fold-page:last-child { break-after: auto; page-break-after: auto; }
+  .fold-strip { position: absolute; left: 0; display: flex; width: calc(var(--cw, 82mm) * 2); height: var(--ch, 130mm); }
+  .fold-panel { width: var(--cw, 82mm); height: var(--ch, 130mm); box-sizing: border-box; padding: var(--top, 17mm) 7mm 7mm;
+    display: flex; flex-direction: column; align-items: center; text-align: center; color: #111; background: #fff; }
+  .fold-front canvas { width: var(--qr, 50mm); height: var(--qr, 50mm); margin-top: 8mm; }
+  .fold-photo { width: calc(var(--cw, 82mm) - 18mm); height: calc((var(--cw, 82mm) - 18mm) * 1.25); max-height: calc(var(--ch, 130mm) - var(--top, 17mm) - 20mm);
+    object-fit: cover; border-radius: 2mm; display: block; }
+  .fold-photo-empty { display: flex; align-items: center; justify-content: center; border: 0.4mm dashed #999;
+    font: 700 10pt "IBM Plex Sans", Arial, sans-serif; letter-spacing: 0.2em; color: #999; box-sizing: border-box; }
+  .fold-photo-name { font: 700 10pt "IBM Plex Sans", Arial, sans-serif; margin-top: 3mm; }
+  .fold-guide { position: absolute; }
+  .fold-guide-v { border-left: 0.3mm dashed #999; }
+  .fold-guide-h { border-top: 0.3mm dashed #999; }
+  .fold-guide-fold { border-left: 0.3mm dotted #bbb; }
+  .fold-label { position: absolute; font: 6pt Arial, sans-serif; color: #999; white-space: nowrap; }
+  .is-fold .print-card { outline: none; }
+  .print-card.is-blank .print-card-id { font-size: 11pt; font-weight: 600; color: #111; }
+
+  /* ---------- Print tab live preview (laptop) ---------- */
+  .print-layout { display: flex; flex-direction: column; gap: 14px; }
+  .print-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .print-preview-col { display: none; }
+  .print-preview-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12.5px; color: var(--muted); }
+  .print-preview-head strong { color: var(--ink); font-size: 13.5px; }
+  .print-preview-frame { position: relative; overflow: hidden; border-radius: 4px; box-shadow: 0 2px 14px rgba(0,0,0,0.18); background: #fff; }
+  .print-preview-holder { position: absolute; top: 0; left: 0; transform-origin: 0 0; width: 210mm; }
+  .print-preview-holder .print-page, .print-preview-holder .fold-page { background: #fff; }
+  @media (min-width: 980px) {
+    .print-layout { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 520px); gap: 28px; align-items: start; }
+    .print-preview-col { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 0; }
+    .print-layout .print-list { max-height: 38vh; min-height: 200px; overflow-y: auto; padding-right: 4px; }
+    .print-layout .print-actionbar { position: static; margin: 0; padding: 12px 0 0; background: none; }
   }
 
   /* ---------- Walk-in sign-up ---------- */
@@ -1158,8 +1289,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- Kept in this repo (vendor/) rather than a CDN so the app opens on bad Wi-Fi; see vendor/README.md -->
+<script src="vendor/qrious.min.js"></script>
+<script src="vendor/jsQR.js"></script>
 
 <div class="page">
 
@@ -1167,6 +1299,7 @@
     <div class="app-shell" aria-label="QR Check-In app">
       <div class="loading-bar" id="loadingBar"></div>
       <div class="sync-box is-offline" id="syncBox" role="status" aria-live="polite"><span id="syncBoxText">Offline</span></div>
+      <div class="alert-stack" id="alertStack" hidden aria-live="assertive"></div>
       <div class="phone-content" id="screen"></div>
       <div class="boot-screen" id="bootScreen" hidden role="status" aria-live="polite">
         <span class="boot-eyebrow">Brisbane YSA Convention</span>
@@ -1223,6 +1356,8 @@
 
   // ---------- live backend wiring ----------
   var BACKEND_URL = "";
+  var ACCESS_KEY = "";
+  try { ACCESS_KEY = localStorage.getItem("qrCheckinAccessKey") || ""; } catch (e) { /* none */ }
   try { BACKEND_URL = localStorage.getItem("qrCheckinBackendUrl") || ""; } catch (e) { /* private window etc — fine, just no persistence */ }
   var backendBusy = false;
   var settingsUrlDraft = BACKEND_URL;
@@ -1298,13 +1433,104 @@
   }
 
   // Any request that gets an answer back means the Sheet is reachable; a network failure means it isn't.
+  // Every request gives up after 30 s (45 s for writes), so one hung request can't hold up
+  // the save queue forever. A write that timed out is retried; the Sheet ignores repeats.
   function trackedFetch(url, opts) {
-    return fetch(url, opts).then(function (r) { markReachable(true); return r.json(); },
-      function (err) { markReachable(false); throw err; });
+    opts = opts || {};
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = null;
+    if (ctrl) {
+      opts.signal = ctrl.signal;
+      timer = setTimeout(function () { ctrl.abort(); }, opts.method === "POST" ? 45000 : 30000);
+    }
+    return fetch(url, opts).then(function (r) {
+      if (timer) clearTimeout(timer);
+      markReachable(true);
+      return r.json();
+    }, function (err) {
+      if (timer) clearTimeout(timer);
+      markReachable(false);
+      if (err && err.name === "AbortError") throw new Error("the Sheet took too long to answer");
+      throw err;
+    });
+  }
+
+  // "https://.../exec?" (plus "key=...&" when this phone has an access code), ready for "action=...".
+  function apiBase() {
+    return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + (ACCESS_KEY ? "key=" + encodeURIComponent(ACCESS_KEY) + "&" : "");
+  }
+  // Builds a GET URL for the Sheet script, adding the access code if this phone has one (Settings).
+  function apiUrl(params) {
+    var q = [];
+    Object.keys(params || {}).forEach(function (k) {
+      if (params[k] != null && params[k] !== "") q.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
+    });
+    if (ACCESS_KEY) q.push("key=" + encodeURIComponent(ACCESS_KEY));
+    return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + q.join("&");
+  }
+
+  // ---------- scan sounds + vibration ----------
+  // Web Audio beeps (no sound files to download) and navigator.vibrate where the phone allows it.
+  // iPhones don't let websites vibrate, so they get sound only. The first tap on the scan button
+  // unlocks audio (browsers block sound until the user has touched the page).
+  var SOUND_STORE = "qrCheckinScanSounds";
+  var scanSoundsOn = true;
+  try { scanSoundsOn = localStorage.getItem(SOUND_STORE) !== "off"; } catch (e) { /* default on */ }
+  var audioCtx = null;
+  function unlockAudio() {
+    try {
+      if (!audioCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      // A silent blip: iOS only unlocks after something actually plays during the tap.
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      g.gain.value = 0; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.01);
+    } catch (e) { /* no audio on this device */ }
+  }
+  document.addEventListener("pointerdown", function () { if (!audioCtx) unlockAudio(); }, { passive: true });
+  function tone(freq, start, dur, type, vol) {
+    var t0 = audioCtx.currentTime + start;
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.35, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  var FEEDBACK = {
+    // kind: [ [freq, startSec, durSec, wave, volume], ... ], vibration pattern (ms)
+    success:   { tones: [[880, 0, 0.11], [1320, 0.12, 0.16]], buzz: [60] },
+    already:   { tones: [[660, 0, 0.13, "triangle", 0.45], [660, 0.2, 0.13, "triangle", 0.45]], buzz: [90, 80, 90] },
+    lost:      { tones: [[1046, 0, 0.12, "square", 0.25], [784, 0.14, 0.12, "square", 0.25], [1046, 0.28, 0.12, "square", 0.25], [784, 0.42, 0.18, "square", 0.25]], buzz: [200, 80, 200, 80, 200] },
+    lostAlert: { tones: [[988, 0, 0.14, "square", 0.22], [740, 0.16, 0.2, "square", 0.22]], buzz: [150, 80, 150] },
+    unknown:   { tones: [[196, 0, 0.32, "sawtooth", 0.25]], buzz: [400] },
+    walkin:    { tones: [[740, 0, 0.14]], buzz: [40] }
+  };
+  function scanFeedback(kind) {
+    if (!scanSoundsOn) return;
+    var f = FEEDBACK[kind];
+    if (!f) return;
+    try { if (navigator.vibrate) navigator.vibrate(f.buzz); } catch (e) { /* not allowed */ }
+    try {
+      if (!audioCtx) return;
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      f.tones.forEach(function (t) { tone(t[0], t[1], t[2], t[3], t[4]); });
+    } catch (e) { /* no audio */ }
+  }
+  function setScanSounds(on) {
+    scanSoundsOn = !!on;
+    try { localStorage.setItem(SOUND_STORE, on ? "on" : "off"); } catch (e) { /* fine */ }
+    if (on) { unlockAudio(); scanFeedback("success"); }
+    render();
   }
 
   function apiGet(action) {
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=" + encodeURIComponent(action);
+    var url = apiBase() + "action=" + encodeURIComponent(action);
     setLoading(true);
     return trackedFetch(url).finally(function () { setLoading(false); });
   }
@@ -1314,23 +1540,24 @@
   // works straight from a locally-hosted page with no server-side CORS setup
   // (Apps Script web apps can't answer a CORS preflight OPTIONS request).
   function rawPost(payload) {
-    return trackedFetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
+    var body = payload;
+    if (ACCESS_KEY) { body = {}; Object.keys(payload).forEach(function (k) { body[k] = payload[k]; }); body.key = ACCESS_KEY; }
+    return trackedFetch(BACKEND_URL, { method: "POST", body: JSON.stringify(body) });
   }
 
   // Changes go to the Sheet one at a time, in the order they were made. The Sheet script
   // only handles one write at a time anyway, so firing them all at once just makes them
   // queue up on Google's side and time out. The sync box counts down as each one lands.
   //
-  // Check-ins, ticks, lost flags, pickups, bookings and "printed" marks are also written
+  // Check-ins, ticks, lost flags, pickups and "printed" marks are also written
   // to localStorage. A failed save stays there and retries; the person screen shows an error.
   // Walk-ins, problems and staff posts stay memory-only (walk-in photos are large, and those
   // screens already keep their own local copy).
   //
-  // Follow-up (not in this change): a request that never returns — for example the script
-  // lock wait — still blocks this pump until the browser ends it. A lock failure that does
-  // return is retried with backoff, but there is no separate lock-timeout budget.
+  // A request that never returns is cut off by trackedFetch's timeout, and a busy Sheet
+  // answers "busy" (script lock), so neither can stall this pump.
   var WRITE_STORE = "qrCheckinWriteQueue";
-  var DURABLE_ACTIONS = { checkin: 1, uncheckin: 1, markTask: 1, markPickedUp: 1, setLost: 1, book: 1, markPrinted: 1 };
+  var DURABLE_ACTIONS = { checkin: 1, uncheckin: 1, markTask: 1, markPickedUp: 1, setLost: 1, markPrinted: 1 };
   var durableQueue = [];
   var memQueue = [];
   var writeBusy = false;
@@ -1405,8 +1632,7 @@
   function retryableError(msg) {
     var s = String(msg || "");
     if (!s) return true;
-    if (s === "full") return false;
-    if (/^Unknown (ID|activity|task)\b/i.test(s)) return false;
+    if (/^Unknown (ID|task)\b/i.test(s)) return false;
     if (/^Missing expected column/i.test(s)) return false;
     if (/^Bad JSON/i.test(s)) return false;
     if (/^Name is required/i.test(s)) return false;
@@ -1415,7 +1641,9 @@
   function friendlyErr(message) {
     var s = String(message || "something went wrong").replace(/^Error:\s*/i, "").trim();
     if (/failed to fetch|networkerror|load failed|network request failed|offline/i.test(s)) return "the phone can’t reach the Sheet.";
-    if (s === "full") return "that activity is full.";
+    if (s === "locked") return "this Sheet needs an access code. Enter it in Settings, then tap Connect.";
+    if (s === "busy") return "the Sheet is busy. It will retry.";
+    if (s === "admin only") return "only an Admin phone can do that (Settings → This phone → Change).";
     if (s.length > 160) s = s.slice(0, 160) + "…";
     return /[.!?]$/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s.charAt(0).toLowerCase() + s.slice(1) + ".";
   }
@@ -1432,7 +1660,6 @@
       setLost: p.value ? "the lost flag" : "the found update",
       checkin: "the check-in",
       uncheckin: "the check-in change",
-      book: "the booking",
       markPrinted: "the printed flag"
     }[p.action] || "that change";
     var text = "Couldn’t save " + what + (who ? " for " + who : "") + " — " + friendlyErr(message)
@@ -1567,6 +1794,9 @@
     );
   }
   function apiPost(payload) {
+    // Who did it, stamped when the change is made (so a retry later still names the right person).
+    if (payload.by == null && staffName) payload.by = staffName;
+    if (payload.deviceId == null && deviceId) payload.deviceId = deviceId;
     return new Promise(function (resolve, reject) {
       var seq = writeSeq++;
       if (DURABLE_ACTIONS[payload.action]) {
@@ -1639,7 +1869,7 @@
   function walkinToRegistrant(w) {
     return {
       id: w.id, name: w.name, ward: w.ward || "Walk-in", stake: w.stake || "", dietary: null,
-      checkedIn: false, checkedInAt: null, bookings: [],
+      checkedIn: false, checkedInAt: null,
       qrPrinted: true, qrPrintedAt: "Blank card",
       lost: false, lostAt: null, needsPickup: false, pickupTime: null,
       details: [["QR ID", w.id], ["Name", w.name], ["Ward", w.ward || ""], ["Walk-in", "Yes"], ["Registered At", w.at || ""]],
@@ -1664,17 +1894,22 @@
   }
 
   // Re-send walk-ins the Sheet hasn't confirmed yet (e.g. registered while the wifi was down).
+  // Walk-ins signed up with no signal are kept on the phone (localStorage, photo included) and
+  // sent after the next successful refresh from the Sheet, and on every app start.
+  var walkinSending = {};
   function syncPendingWalkins() {
     if (!BACKEND_URL) return;
     Object.keys(localWalkins).forEach(function (id) {
       var w = localWalkins[id];
-      if (w.synced) return;
+      if (w.synced || walkinSending[id]) return;
       var onServer = byId(state.registrants, id);
       if (onServer && onServer.fromServer) { w.synced = true; saveLocalWalkins(); return; }
+      walkinSending[id] = true;
       apiPost({ action: "registerWalkin", id: w.id, name: w.name, ward: w.ward || "", photo: w.photo || "", at: w.at })
         .then(function (res) {
+          walkinSending[id] = false;
           if (res && res.ok) { w.synced = true; saveLocalWalkins(); }
-        }).catch(function () { /* try again next load */ });
+        }).catch(function () { walkinSending[id] = false; /* tried again after the next good refresh */ });
     });
   }
 
@@ -1712,7 +1947,7 @@
     var r = byId(state.registrants, id);
     if (!r || r.details || !BACKEND_URL || detailsLoading[id] === "loading") return;
     detailsLoading[id] = "loading";
-    fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=person&id=" + encodeURIComponent(id))
+    fetch(apiBase() + "action=person&id=" + encodeURIComponent(id))
       .then(function (x) { return x.json(); })
       .then(function (d) {
         if (d && d.ok && d.details) { r.details = normalizeDetails(d.details); delete detailsLoading[id]; }
@@ -1769,28 +2004,29 @@
       r[t.field] = !!p.value;
       if (p.value) { var taskAt = friendlyTime(p.at); if (taskAt) r[t.atField] = taskAt; }
       else r[t.atField] = null;
+      r[t.field + "By"] = p.value ? (p.by || null) : null;
     } else if (p.action === "markPickedUp") {
       if (p.id !== r.id) return;
       r.pickedUp = !!p.value;
       if (p.value) { var pickAt = friendlyTime(p.at); if (pickAt) r.pickedUpAt = pickAt; }
       else r.pickedUpAt = null;
+      r.pickedUpBy = p.value ? (p.by || null) : null;
     } else if (p.action === "setLost") {
       if (p.id !== r.id) return;
       r.lost = !!p.value;
       if (p.value) { var lostAt = friendlyTime(p.at); if (lostAt) r.lostAt = lostAt; }
       else r.lostAt = null;
+      r.lostBy = p.value ? (p.by || null) : null;
     } else if (p.action === "checkin") {
       if (p.id !== r.id) return;
       r.checkedIn = true;
       var inAt = friendlyTime(p.at);
       if (inAt) r.checkedInAt = inAt;
+      if (p.by) r.checkedInBy = p.by;
     } else if (p.action === "uncheckin") {
       if (p.id !== r.id) return;
       r.checkedIn = false;
       r.checkedInAt = null;
-    } else if (p.action === "book") {
-      if (p.id !== r.id || !p.activityId) return;
-      if (r.bookings.indexOf(p.activityId) === -1) r.bookings.push(p.activityId);
     } else if (p.action === "markPrinted") {
       var ids = p.ids || (p.id ? [p.id] : []);
       if (ids.indexOf(r.id) === -1) return;
@@ -1823,7 +2059,6 @@
     var mapped = {
       id: r.id, name: r.name, ward: r.ward, stake: r.stake, dietary: r.dietary,
       checkedIn: !!r.checkedIn, checkedInAt: friendlyTime(r.checkedInAt),
-      bookings: (r.bookings || []).slice(),
       qrPrinted: !!r.qrPrinted, qrPrintedAt: friendlyTime(r.qrPrintedAt),
       lost: !!r.lost, lostAt: friendlyTime(r.lostAt),
       needsPickup: !!r.needsPickup, pickupTime: friendlyTime(r.pickupTime),
@@ -1841,6 +2076,13 @@
       shirtGiven: r.shirtGiven === undefined ? !!(localTasks[r.id] && localTasks[r.id].shirt) : !!r.shirtGiven,
       shirtGivenAt: r.shirtGiven === undefined ? friendlyTime(localTasks[r.id] && localTasks[r.id].shirt) : friendlyTime(r.shirtGivenAt),
       walkin: !!r.walkin || isWalkinCode(r.id),
+      checkedInBy: r.checkedInBy || null,
+      lostBy: r.lostBy || null,
+      packGivenBy: r.packGivenBy || null,
+      shirtGivenBy: r.shirtGivenBy || null,
+      pickedUpBy: r.pickedUpBy || null,
+      allergy: r.allergy || null,
+      medical: !!r.medical,
       fromServer: true
     };
     return overlayPending(mapped);
@@ -1918,7 +2160,7 @@
     if (!force && document.hidden) return;
     heartbeatBusy = true;
     lastHeartbeat = Date.now();
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=heartbeat&deviceId=" + encodeURIComponent(deviceId);
+    var url = apiBase() + "action=heartbeat&deviceId=" + encodeURIComponent(deviceId);
     trackedFetch(url).then(function (d) {
       heartbeatBusy = false;
       if (d && d.ok) {
@@ -2043,7 +2285,7 @@
   }
 
   function listPage(offset, limit) {
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=list&offset=" + offset + "&limit=" + limit;
+    var url = apiBase() + "action=list&offset=" + offset + "&limit=" + limit;
     setLoading(true);
     return trackedFetch(url).finally(function () { setLoading(false); });
   }
@@ -2056,7 +2298,7 @@
   }
 
   // Loads everyone (page by page when the Sheet script supports it) and resolves with
-  // { ok, registrants, activities, walkinPrintedTo } like the old single "list" call.
+  // { ok, registrants, walkinPrintedTo } like the old single "list" call.
   function loadAllPeople(onProgress) {
     return listPageRetry(0, LIST_PAGE).then(function (first) {
       if (!first || first.ok === false) return first;
@@ -2086,7 +2328,7 @@
         if (failed) return failed;
         var all = [];
         pages.forEach(function (pg) { if (pg) all = all.concat(pg); });
-        return { ok: true, registrants: all, activities: first.activities, walkinPrintedTo: first.walkinPrintedTo };
+        return { ok: true, registrants: all, walkinPrintedTo: first.walkinPrintedTo };
       });
     });
   }
@@ -2099,18 +2341,19 @@
     loadAllPeople(bootProgress).then(function (data) {
       backendBusy = false;
       if (!data || data.ok === false) {
-        var why = data && data.error ? data.error : "check the URL";
+        var why = data && data.error ? friendlyErr(data.error) : "check the URL";
         setConnStatus("Couldn't load — " + why, false);
         markReachable(false);
         bootFail("Couldn’t load the Sheet — " + why);
         return;
       }
       state.registrants = data.registrants.map(mapServerRegistrant);
-      state.activities = data.activities || [];
+      if (typeof data.rev === "number") liveRev = data.rev;
       mergeLocalWalkins();
       applySheetWalkinPrinted(data);
       reconcileLegacyTicks();
       lastPeopleRefresh = Date.now();
+      savePeopleCache(data, true);
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
       bootProgress(data.registrants.length, data.registrants.length);
@@ -2121,20 +2364,75 @@
     }).catch(function (err) {
       backendBusy = false;
       markReachable(false);
+      if (startFromPeopleCache()) return;
       setConnStatus("Couldn't reach that URL — " + err, false);
       bootFail("Couldn’t reach the Sheet. Check the internet connection and try again.");
     });
   }
 
+  // ---------- last-known people list, for opening the app with no signal ----------
+  // The newest full list is kept on the phone. If the Sheet can't be reached when the app opens,
+  // it starts from that copy (scans, ticks and lost flags still work and are sent when the
+  // signal comes back) instead of stopping at the loading screen.
+  var PEOPLE_CACHE_STORE = "qrCheckinPeopleCache";
+  var lastPeopleCacheSave = 0;
+  var peopleCacheAt = null;   // when the copy in use was saved, if we started from it
+  function savePeopleCache(data, force) {
+    if (!data || !data.registrants) return;
+    if (!force && Date.now() - lastPeopleCacheSave < 60000) return;
+    lastPeopleCacheSave = Date.now();
+    try {
+      localStorage.setItem(PEOPLE_CACHE_STORE, JSON.stringify({
+        url: BACKEND_URL, savedAt: Date.now(),
+        data: { registrants: data.registrants, walkinPrintedTo: data.walkinPrintedTo, rev: data.rev }
+      }));
+    } catch (e) { /* phone storage full: just no offline copy */ }
+  }
+  function startFromPeopleCache() {
+    var c = null;
+    try { c = JSON.parse(localStorage.getItem(PEOPLE_CACHE_STORE) || "null"); } catch (e) { c = null; }
+    if (!c || c.url !== BACKEND_URL || !c.data || !c.data.registrants || !c.data.registrants.length) return false;
+    state.registrants = c.data.registrants.map(mapServerRegistrant);
+    mergeLocalWalkins();
+    applySheetWalkinPrinted(c.data);
+    peopleCacheAt = c.savedAt;
+    lastPeopleRefresh = 0;   // try the Sheet again on the next refresh tick
+    var when = new Date(c.savedAt);
+    var hh = when.getHours(), mm = when.getMinutes();
+    var label = (hh % 12 || 12) + ":" + (mm < 10 ? "0" : "") + mm + (hh < 12 ? " AM" : " PM");
+    setConnStatus("Offline — using the list saved on this phone at " + label + ". Changes are kept and sent when the signal is back.", false);
+    render();
+    hideBoot();
+    return true;
+  }
+
   function connectBackend() {
     var input = document.getElementById("settingsUrlInput");
+    var keyInput = document.getElementById("settingsKeyInput");
+    if (keyInput) setAccessKey(keyInput.value);
     connectWithUrl((input && input.value || "").trim());
   }
 
-  // Setup QR codes just contain the Apps Script /exec URL.
+  // Access code (optional): if the Sheet script has an ACCESS_CODE set, every request must carry it.
+  function setAccessKey(k) {
+    ACCESS_KEY = String(k || "").trim();
+    try { if (ACCESS_KEY) localStorage.setItem("qrCheckinAccessKey", ACCESS_KEY); else localStorage.removeItem("qrCheckinAccessKey"); } catch (e) { /* fine */ }
+  }
+  // A setup link may carry the code after the URL: https://script.google.com/.../exec#key=1234
+  function splitSetupLink(text) {
+    var t = String(text || "").trim();
+    var m = /^(.*?)#key=([^&#\s]*)$/.exec(t);
+    return m ? { url: m[1], key: decodeURIComponent(m[2]) } : { url: t, key: null };
+  }
+  function setupLink() { return BACKEND_URL + (ACCESS_KEY ? "#key=" + encodeURIComponent(ACCESS_KEY) : ""); }
+
+  // Setup QR codes contain the Apps Script /exec URL (plus #key=... when the Sheet has an access code).
   function isBackendUrl(text) { return /^https:\/\/script\.google(usercontent)?\.com\/\S+$/i.test(String(text || "").trim()); }
 
   function connectWithUrl(url) {
+    var parts = splitSetupLink(url);
+    url = parts.url;
+    if (parts.key !== null) setAccessKey(parts.key);
     if (!url) { setConnStatus("Paste your Apps Script /exec URL above first", false); return; }
     BACKEND_URL = url;
     settingsUrlDraft = url;
@@ -2174,17 +2472,6 @@
     var SIZES = ["XS", "S", "M", "L", "XL", "2XL"];
     var PAYMENT = ["Paid in full", "Paid in full", "Paid in full", "Deposit paid", "Unpaid"];
 
-    var activities = [
-      { id: "escape", name: "Escape Room Challenge", time: "Sat 10:00 AM", capacity: 20, otherBookings: 4 },
-      { id: "choir", name: "Worship Night Rehearsal", time: "Sat 1:00 PM", capacity: 15, otherBookings: 2 },
-      { id: "futsal", name: "Sports Tournament: Futsal", time: "Sat 2:30 PM", capacity: 24, otherBookings: 6 },
-      { id: "service", name: "Service Project: Care Packages", time: "Sun 9:00 AM", capacity: 30, otherBookings: 3 },
-      { id: "talent", name: "Talent Show Sign-ups", time: "Sat 7:30 PM", capacity: 12, otherBookings: 5 },
-      { id: "hike", name: "Hike & Lookout Walk", time: "Sun 7:00 AM", capacity: 16, otherBookings: 1 }
-    ];
-    var taken = {};
-    activities.forEach(function (a) { taken[a.id] = a.otherBookings; });
-
     var registrants = [];
     var usedNames = {};
     for (var i = 1; i <= 100; i++) {
@@ -2203,10 +2490,6 @@
       var needsPickup = chance(0.22);
       var checkedIn = chance(0.35);
       var qrPrinted = checkedIn || chance(0.5);
-      var bookings = [];
-      activities.forEach(function (a) {
-        if (chance(0.12) && taken[a.id] < a.capacity - (a.id === "talent" ? 1 : 2)) { bookings.push(a.id); taken[a.id]++; }
-      });
 
       var r = {
         id: id,
@@ -2217,7 +2500,6 @@
         dietary: dietary,
         checkedIn: checkedIn,
         checkedInAt: checkedIn ? pick(CHECKIN_TIMES) : null,
-        bookings: bookings,
         qrPrinted: qrPrinted,
         qrPrintedAt: qrPrinted ? pick(["3 Aug, 4:02 PM", "14 Sep, 10:24 AM", "20 Sep, 6:10 PM"]) : null,
         lost: false,
@@ -2254,7 +2536,7 @@
       r.lost = true; r.lostAt = k ? "12:05 PM" : "11:20 AM";
     });
 
-    return { registrants: registrants, activities: activities };
+    return { registrants: registrants };
   })();
 
   var state = clone(initialState);
@@ -2262,7 +2544,6 @@
   if (!BACKEND_URL) reconcileLegacyTicks();
   var view = defaultView();
   var lastUpdatedRegistrant = null;
-  var lastUpdatedActivity = null;
   var lastPrintedBatch = [];
 
   // camera plumbing (kept outside `view` since it holds live browser handles, not data)
@@ -2276,7 +2557,7 @@
       activeTab: "people",     // "dashboard" | "people" | "other" | "print" — which bottom tab is selected
       screen: "tab",           // "tab" | "camera" | "scanned" | "pin"
       registrantId: null,
-      personTab: "checkin",    // sub-tab within the scanned card: "checkin" | "activities"
+      personTab: "checkin",    // sub-tab within the scanned card: "checkin" | "details"
       otherPage: null,         // which page is open within "Other": null (landing) | "airport" | "dietary" | "teams"
       pinError: false,
       staffUnlocked: true,
@@ -2332,7 +2613,7 @@
     if (img.parentNode) img.parentNode.removeChild(img);
     if (!r || photoRetried[id] || !BACKEND_URL || (r.photo || "").indexOf("data:") === 0) return;
     photoRetried[id] = true;
-    fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(id))
+    fetch(apiBase() + "action=photo&id=" + encodeURIComponent(id))
       .then(function (x) { return x.json(); })
       .then(function (d) {
         if (d && d.ok && d.dataUri) { if (!r.photoOrig) r.photoOrig = r.photo; r.photo = d.dataUri; render(); }
@@ -2355,7 +2636,7 @@
     };
     var viaSheet = function () {
       if (!BACKEND_URL) { done(null); return; }
-      fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&size=full&id=" + encodeURIComponent(r.id))
+      fetch(apiBase() + "action=photo&size=full&id=" + encodeURIComponent(r.id))
         .then(function (x) { return x.json(); })
         .then(function (d) { done(d && d.ok && d.dataUri ? d.dataUri : null); })
         .catch(function () { done(null); });
@@ -2380,7 +2661,7 @@
     var r = byId(state.registrants, view.photoView);
     if (r && !img.getAttribute("data-retried") && BACKEND_URL) {
       img.setAttribute("data-retried", "1");
-      fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&size=full&id=" + encodeURIComponent(r.id))
+      fetch(apiBase() + "action=photo&size=full&id=" + encodeURIComponent(r.id))
         .then(function (x) { return x.json(); })
         .then(function (d) { if (d && d.ok && d.dataUri) { r.photoBig = d.dataUri; img.src = d.dataUri; } else throw 0; })
         .catch(function () { img.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" })); });
@@ -2388,23 +2669,6 @@
     }
     img.replaceWith(Object.assign(document.createElement("div"), { className: "photo-viewer-missing", textContent: "Couldn\u2019t load this photo" }));
   }, true);
-
-  function spotsTaken(activity) {
-    var mine = 0;
-    for (var i = 0; i < state.registrants.length; i++) {
-      if (state.registrants[i].bookings.indexOf(activity.id) !== -1) mine++;
-    }
-    return activity.otherBookings + mine;
-  }
-
-  function capacityState(activity) {
-    var taken = spotsTaken(activity);
-    var ratio = taken / activity.capacity;
-    var status = "ok";
-    if (taken >= activity.capacity) status = "full";
-    else if (ratio >= 0.8) status = "near";
-    return { taken: taken, ratio: Math.min(ratio, 1), status: status };
-  }
 
   function timeToMinutes(t) {
     if (t == null || t === "") return 0;
@@ -2542,17 +2806,24 @@
     var errEl = document.getElementById("manualError");
     if (errEl) errEl.textContent = "No registrant found with ID " + label + ".";
   }
+  // Which sound a successful lookup makes: lost beats already-in beats a normal hello.
+  function scanKindFor(r) {
+    if (r.lost) return "lost";
+    if (r.checkedIn) return "already";
+    return "success";
+  }
   function considerScan(text, fromCamera) {
     var raw = String(text || "").trim();
     var norm = raw.toUpperCase();
     var r = byId(state.registrants, raw) || byId(state.registrants, norm);
-    if (r) { stopCamera(); scan(r.id); return; }
+    if (r) { scanFeedback(scanKindFor(r)); stopCamera(); scan(r.id, true); return; }
     if (fromCamera && scanMissAt[norm] && Date.now() - scanMissAt[norm] < 8000) {
       cameraRaf = requestAnimationFrame(tickCamera);
       return;
     }
     var finishMiss = function () {
-      if (isWalkinCode(norm)) { stopCamera(); openWalkin(norm); return; }
+      if (isWalkinCode(norm)) { scanFeedback("walkin"); stopCamera(); openWalkin(norm); return; }
+      scanFeedback("unknown");
       if (fromCamera) scanMissAt[norm] = Date.now();
       showScanMiss(fromCamera ? raw : norm, fromCamera);
     };
@@ -2573,7 +2844,7 @@
       scanLookupBusy = false;
       if (fromCamera && view.screen !== "camera") return;
       var again = byId(state.registrants, raw) || byId(state.registrants, norm);
-      if (again) { stopCamera(); scan(again.id); return; }
+      if (again) { scanFeedback(scanKindFor(again)); stopCamera(); scan(again.id, true); return; }
       finishMiss();
     }, function () {
       scanLookupBusy = false;
@@ -2610,6 +2881,7 @@
   }
 
   function openCamera(mode) {
+    unlockAudio();
     stopCamera();
     view.cameraMode = mode === "setup" ? "setup" : null;
     view.screen = "camera";
@@ -2629,7 +2901,46 @@
 
   function pinBack() { view.activeTab = "people"; view.screen = "tab"; render(); }
 
-  function setPeopleSearch(term) {
+  // Desk search: a phone number or email (or a name not found on this phone) is also looked up
+  // in the Sheet, so someone without their lanyard can still be found.
+  var remoteSearch = null;   // { term, status: "loading" | "" | message, results: [] }
+  var remoteSearchTimer = null;
+  function wantsRemoteSearch(term) {
+    var t = term.trim();
+    if (!BACKEND_URL || t.length < 3) return false;
+    if (t.indexOf("@") !== -1) return true;
+    if (t.replace(/\D/g, "").length >= 6) return true;
+    return t.length >= 4 && !state.registrants.some(function (r) { return r.name.toLowerCase().indexOf(t.toLowerCase()) !== -1; });
+  }
+  function runRemoteSearch(term) {
+    var t = term.trim();
+    remoteSearch = { term: t, status: "loading", results: [] };
+    trackedFetch(apiUrl({ action: "search", q: t })).then(function (d) {
+      if (!remoteSearch || remoteSearch.term !== t) return;
+      if (!d || d.ok === false) {
+        remoteSearch = { term: t, status: /unknown action/i.test(String(d && d.error)) ? "Phone/email search needs the updated Sheet script." : "Couldn’t search the Sheet — " + friendlyErr(d && d.error), results: [] };
+      } else {
+        remoteSearch = { term: t, status: d.results.length ? "" : "No phone number or email in the Sheet matches that either.", results: d.results };
+      }
+      if (view.screen === "tab" && view.activeTab === "people") setPeopleSearch(view.peopleSearch, true);
+    }, function (err) {
+      if (!remoteSearch || remoteSearch.term !== t) return;
+      remoteSearch = { term: t, status: "Couldn’t reach the Sheet to search phone numbers and emails.", results: [] };
+      if (view.screen === "tab" && view.activeTab === "people") setPeopleSearch(view.peopleSearch, true);
+    });
+  }
+
+  function setPeopleSearch(term, fromRemote) {
+    if (!fromRemote) {
+      if (remoteSearchTimer) clearTimeout(remoteSearchTimer);
+      if (wantsRemoteSearch(term)) {
+        var t = term.trim();
+        if (!remoteSearch || remoteSearch.term !== t) {
+          remoteSearch = { term: t, status: "loading", results: [] };
+          remoteSearchTimer = setTimeout(function () { runRemoteSearch(t); }, 450);
+        }
+      } else remoteSearch = null;
+    }
     view.peopleSearch = term;
     render();
     var el = document.getElementById("peopleSearch");
@@ -2907,10 +3218,13 @@
     window.print();
   }
 
-  function scan(registrantId) {
+  // fromScanner: opened by scanning a lanyard (not from a list), so warn if they're already in.
+  function scan(registrantId, fromScanner) {
     stopCamera();
     view.screen = "scanned";
     view.registrantId = registrantId;
+    var who = byId(state.registrants, registrantId);
+    view.scanWarn = fromScanner && who && who.checkedIn ? registrantId : null;
     view.personTab = "checkin";
     render();
   }
@@ -2957,6 +3271,7 @@
     var prevAt = r.lostAt;
     r.lost = !!lost;
     r.lostAt = lost ? nowTime() : null;
+    r.lostBy = lost ? (staffName || null) : null;
     lastUpdatedRegistrant = registrantId;
     render();
     if (!BACKEND_URL) return;
@@ -2973,33 +3288,6 @@
       }
       render();
     }).catch(function (err) { setConnStatus("Lost flag saved on this phone — " + err + ". It will retry.", false); });
-  }
-
-  function book(registrantId, activityId) {
-    var r = byId(state.registrants, registrantId);
-    var a = byId(state.activities, activityId);
-    if (!r || !a) return;
-    if (r.bookings.indexOf(activityId) !== -1) return;
-    var cap = capacityState(a);
-    if (cap.taken >= a.capacity) return; // filled just before the tap — mirrors the "capacity hit" branch
-    r.bookings.push(activityId);
-    lastUpdatedRegistrant = registrantId;
-    lastUpdatedActivity = activityId;
-    render();
-    if (!BACKEND_URL) return;
-    apiPost({ action: "book", id: registrantId, activityId: activityId }).then(function (res) {
-      if (res && res.superseded) return;
-      var current = liveRegistrant(registrantId, r);
-      if (res && res.ok && res.registrant) {
-        adoptServerRegistrant(current, res.registrant);
-        setConnStatus("Connected — live off the test Sheet", true);
-      } else if (!(res && res.ok)) {
-        var bi = current.bookings.indexOf(activityId);
-        if (bi !== -1) current.bookings.splice(bi, 1);
-        setConnStatus(res && res.error === "full" ? "That activity just filled up" : "Booking failed — " + ((res && res.error) || "couldn’t save"), false);
-      }
-      render();
-    }).catch(function (err) { setConnStatus("Booking saved on this phone — " + err + ". It will retry.", false); });
   }
 
   // ---------- airport pickup ----------
@@ -3022,8 +3310,10 @@
     var r = byId(state.registrants, c.id);
     var t = findTask(c.task);
     if (!r || !t) { render(); return; }
+    var wasAllDone = CHECKIN_TASKS.every(function (x) { return r[x.field]; });
     r[t.field] = c.next;
     r[t.atField] = c.next ? nowTime() : null;
+    r[t.field + "By"] = c.next ? (staffName || null) : null;
     if (!localTasks[r.id]) localTasks[r.id] = {};
     if (c.next) localTasks[r.id][t.key] = r[t.atField]; else delete localTasks[r.id][t.key];
     saveLocalTasks();
@@ -3031,8 +3321,11 @@
     // Someone counts as checked in once every item on the list is done.
     var allDone = CHECKIN_TASKS.every(function (x) { return r[x.field]; });
     var checkInChange = null;
-    if (allDone && !r.checkedIn) { r.checkedIn = true; r.checkedInAt = nowTime(); checkInChange = "checkin"; }
-    else if (!allDone && r.checkedIn) { r.checkedIn = false; r.checkedInAt = null; checkInChange = "uncheckin"; }
+    if (allDone && !r.checkedIn) { r.checkedIn = true; r.checkedInAt = nowTime(); r.checkedInBy = staffName || null; checkInChange = "checkin"; }
+    // Unticking only undoes a check-in that the list itself made (everything was ticked a moment
+    // ago). Someone checked in another way (by hand in the Sheet, or before the list existed)
+    // stays checked in while staff tick their pack and shirt.
+    else if (!allDone && wasAllDone && r.checkedIn) { r.checkedIn = false; r.checkedInAt = null; r.checkedInBy = null; checkInChange = "uncheckin"; }
 
     lastUpdatedRegistrant = r.id;
     render();
@@ -3076,6 +3369,7 @@
     if (!r) { render(); return; }
     r.pickedUp = c.next;
     r.pickedUpAt = c.next ? nowTime() : null;
+    r.pickedUpBy = c.next ? (staffName || null) : null;
     if (c.next) localPicked[r.id] = r.pickedUpAt; else delete localPicked[r.id];
     saveLocalPicked();
     lastUpdatedRegistrant = r.id;
@@ -3187,10 +3481,8 @@
       parts.push(r.id, r.name, r.checkedIn ? 1 : 0, r.checkedInAt || "", r.lost ? 1 : 0, r.lostAt || "",
         r.packGiven ? 1 : 0, r.packGivenAt || "", r.shirtGiven ? 1 : 0, r.shirtGivenAt || "",
         r.pickedUp ? 1 : 0, r.pickedUpAt || "", r.qrPrinted ? 1 : 0,
-        (r.bookings || []).join(","), r.walkin ? 1 : 0, r.needsPickup ? 1 : 0, r.pickupTime || "");
+        r.walkin ? 1 : 0, r.needsPickup ? 1 : 0, r.pickupTime || "");
     }
-    var acts = state.activities || [];
-    for (var j = 0; j < acts.length; j++) parts.push("a", acts[j].id, acts[j].capacity, acts[j].otherBookings);
     return parts.join("\u0001");
   }
 
@@ -3207,7 +3499,6 @@
       if (old.photoOrig) mapped.photoOrig = old.photoOrig;
       return mapped;
     });
-    if (data.activities) state.activities = data.activities;
     mergeLocalWalkins();
     applySheetWalkinPrinted(data);
     reconcileLegacyTicks();
@@ -3231,19 +3522,28 @@
 
   // Light refresh everywhere so lost flags, check-ins and new people show up
   // without a full reload. Skips the loading bar. Unsent local ticks are reapplied.
-  var PEOPLE_REFRESH_MS = 25000;
+  // With a Sheet script that has Live.gs, phones ask "has anything changed?" every 8 s (cheap,
+  // no Sheet read) and only download everyone when it has, plus a safety refresh every 2 min.
+  // An older script without Live.gs falls back to a full refresh every 25 s.
+  var PEOPLE_REFRESH_LEGACY_MS = 25000;
+  var PEOPLE_REFRESH_SAFETY_MS = 120000;
+  var PEOPLE_REFRESH_MS = PEOPLE_REFRESH_LEGACY_MS;
   var lastPeopleRefresh = Date.now();
   var refreshPromise = null;
   function quietRefresh() {
     if (!BACKEND_URL || backendBusy) return Promise.resolve(null);
     if (refreshPromise) return refreshPromise;
     lastPeopleRefresh = Date.now();
-    var url = BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=list";
+    var url = apiBase() + "action=list";
     refreshPromise = trackedFetch(url).then(function (data) {
       refreshPromise = null;
       if (!data || data.ok === false || !data.registrants) return data;
+      if (typeof data.rev === "number") liveRev = data.rev;
       var before = peopleSig(state.registrants);
       applyPeopleSnapshot(data);
+      savePeopleCache(data);
+      syncPendingWalkins();
+      if (peopleCacheAt) { peopleCacheAt = null; setConnStatus("Back online — live off the Sheet", true); }
       if (peopleSig(state.registrants) !== before && !viewBlocksRefreshRender()) renderKeepingScroll();
       return data;
     }, function (err) {
@@ -3257,6 +3557,97 @@
     if (Date.now() - lastPeopleRefresh < PEOPLE_REFRESH_MS) return;
     quietRefresh();
   }, 5000);
+
+  // ---------- live changes + lost-person alerts (Live.gs) ----------
+  var REV_POLL_MS = 8000;
+  var liveRev = null;          // the Sheet's change counter as of our last full list
+  var revSupported = null;     // null = not asked yet, false = older script without Live.gs
+  var revBusy = false;
+  var lastRevPoll = 0;
+  var lostAlerts = [];         // [{ id, name, team, at, by }] from the Sheet, newest info
+  var DISMISSED_LOST_STORE = "qrCheckinDismissedLost";
+  var dismissedLost = {};      // id -> the "at" stamp that was dismissed (a new lost report shows again)
+  try { dismissedLost = JSON.parse(localStorage.getItem(DISMISSED_LOST_STORE) || "{}") || {}; } catch (e) { dismissedLost = {}; }
+  var alertedLost = {};        // id + at that already beeped on this phone
+
+  function pollRev() {
+    if (!BACKEND_URL || document.hidden || revBusy || revSupported === false) return;
+    revBusy = true;
+    lastRevPoll = Date.now();
+    trackedFetch(apiUrl({ action: "rev" })).then(function (d) {
+      revBusy = false;
+      if (!d) return;
+      if (d.ok === false) {
+        if (/unknown action/i.test(String(d.error || ""))) { revSupported = false; PEOPLE_REFRESH_MS = PEOPLE_REFRESH_LEGACY_MS; }
+        return;
+      }
+      if (revSupported !== true) { revSupported = true; PEOPLE_REFRESH_MS = PEOPLE_REFRESH_SAFETY_MS; }
+      applyLostAlerts(d.lost || []);
+      if (typeof d.rev === "number") {
+        if (liveRev === null) liveRev = d.rev;
+        else if (d.rev !== liveRev && !backendBusy) quietRefresh().catch(function () {});
+      }
+    }, function () { revBusy = false; });
+  }
+  setInterval(function () {
+    if (Date.now() - lastRevPoll >= REV_POLL_MS) pollRev();
+  }, 2000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) pollRev(); });
+
+  function activeLostAlerts() {
+    return lostAlerts.filter(function (a) { return dismissedLost[a.id] !== (a.at || "-"); });
+  }
+  function applyLostAlerts(list) {
+    lostAlerts = list.slice();
+    var fresh = false;
+    lostAlerts.forEach(function (a) {
+      var key = a.id + "|" + (a.at || "");
+      if (dismissedLost[a.id] === (a.at || "-")) return;
+      if (!alertedLost[key]) { alertedLost[key] = true; fresh = true; }
+      // Show it on this phone straight away, even before the next full list arrives.
+      var r = byId(state.registrants, a.id);
+      if (r && !r.lost && !hasPendingAction("setLost", a.id)) { r.lost = true; if (a.at) r.lostAt = a.at; if (a.by) r.lostBy = a.by; }
+    });
+    // Anyone the Sheet no longer lists as lost has been found.
+    Object.keys(dismissedLost).forEach(function (id) {
+      if (!lostAlerts.some(function (a) { return a.id === id; })) delete dismissedLost[id];
+    });
+    saveDismissedLost();
+    if (fresh) scanFeedback("lostAlert");
+    renderAlerts();
+  }
+  function dismissLostAlert(id) {
+    var a = lostAlerts.filter(function (x) { return x.id === id; })[0];
+    dismissedLost[id] = a ? (a.at || "-") : "-";
+    saveDismissedLost();
+    renderAlerts();
+  }
+  function saveDismissedLost() {
+    try { localStorage.setItem(DISMISSED_LOST_STORE, JSON.stringify(dismissedLost)); } catch (e) { /* fine */ }
+  }
+  function renderAlerts() {
+    var box = document.getElementById("alertStack");
+    if (!box) return;
+    var list = activeLostAlerts();
+    if (!list.length) { box.innerHTML = ""; box.hidden = true; box.removeAttribute("data-sig"); return; }
+    box.hidden = false;
+    var shown = list.slice(0, 3);
+    var html = shown.map(function (a) {
+      var r = byId(state.registrants, a.id);
+      var team = a.team || (r && r.team) || "";
+      var when = a.at ? " &middot; since " + esc(String(a.at).replace(/^\d+ \w+, /, "")) : "";
+      return '<div class="lostbar" role="alert">' +
+        '<button class="lostbar-main" data-action="scan" data-id="' + esc(a.id) + '" type="button">' +
+          '<span class="lostbar-tag">LOST</span>' +
+          '<span class="lostbar-name">' + esc(a.name || a.id) + '</span>' +
+          '<span class="lostbar-meta">' + (team ? esc(team) : esc(a.id)) + when + (a.by ? ' &middot; reported by ' + esc(a.by) : '') + ' &middot; tap to view</span>' +
+        '</button>' +
+        '<button class="lostbar-x" data-action="dismissLost" data-id="' + esc(a.id) + '" type="button" aria-label="Hide this alert">&times;</button>' +
+      '</div>';
+    }).join("") + (list.length > 3 ? '<button class="lostbar-more" data-action="openLostList" type="button">+ ' + (list.length - 3) + ' more lost</button>' : "");
+    // Only touch the DOM when something changed, so the slide-in doesn't replay every poll.
+    if (box.getAttribute("data-sig") !== html) { box.innerHTML = html; box.setAttribute("data-sig", html); }
+  }
 
   function setPersonTab(tab) {
     view.personTab = tab;
@@ -3311,7 +3702,7 @@
     { id: "fold2", name: "Fold-over with photo · 2 per page", fold: true, cardW: 82, cardH: 130, gap: 0, qr: 50, nameSize: 22, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true },
     { id: "walkin4", name: "Walk-in card 82×130 · 4 per page", cardW: 82, cardH: 130, gap: 10, qr: 50, nameSize: 26, topPad: 17, cutLines: true, showEvent: true, showTeam: false, showDietary: false, showId: true }
   ];
-  var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showId", "fold"];
+  var PRESET_FIELDS = ["cardW", "cardH", "gap", "qr", "nameSize", "topPad", "cutLines", "showEvent", "showTeam", "showDietary", "showAllergy", "showId", "fold"];
   var customPresets = [];
   try { customPresets = JSON.parse(localStorage.getItem("qrCheckinPrintPresets") || "[]") || []; } catch (e) { customPresets = []; }
 
@@ -3345,7 +3736,7 @@
       qr: num(o.qr, 15, 150, 50),
       nameSize: num(o.nameSize, 8, 60, 22),
       topPad: num(o.topPad, 0, 60, 17),
-      cutLines: !!o.cutLines, showEvent: !!o.showEvent, showTeam: !!o.showTeam, showDietary: !!o.showDietary, showId: !!o.showId
+      cutLines: !!o.cutLines, showEvent: !!o.showEvent, showTeam: !!o.showTeam, showDietary: !!o.showDietary, showAllergy: !!o.showAllergy, showId: !!o.showId
     };
   }
   function presetSettings(pr) { var o = {}; PRESET_FIELDS.forEach(function (f) { o[f] = pr[f]; }); return normalizeSettings(o); }
@@ -3443,7 +3834,8 @@
     var toggle = function (f, label) {
       return '<label class="preset-toggle"><input type="checkbox" data-pfield="' + f + '"' + (st[f] ? ' checked' : '') + '>' + label + '</label>';
     };
-    var edit = sc.edit
+    var keepOpen = scope === "lanyard" && isWide();   // laptop: options stay open next to the preview
+    var edit = (sc.edit || keepOpen)
       ? '<div class="preset-edit">' +
           '<div class="preset-grid">' +
             numField("cardW", "Card width", "mm") + numField("cardH", "Card height", "mm") +
@@ -3454,7 +3846,7 @@
             (isWalkin
               ? toggle("showEvent", "Event title") + toggle("cutLines", "Cut lines")
               : toggle("showEvent", "Event title") + toggle("showTeam", "Team name") +
-                toggle("showDietary", "Dietary pill") + toggle("showId", "ID under QR") +
+                toggle("showDietary", "Dietary pill") + toggle("showAllergy", "Allergy pill") + toggle("showId", "ID under QR") +
                 toggle("cutLines", st.fold ? "Cut & fold lines" : "Cut lines")) +
           '</div>' +
           '<div class="preset-actions">' +
@@ -3472,7 +3864,7 @@
         '<span class="preset-label">' + (isWalkin ? 'Blank card layout' : 'Print layout') + '</span>' +
         '<select class="text-input preset-select" id="presetSelect-' + scope + '" data-preset-select="1" aria-label="' + (isWalkin ? 'Blank card layout' : 'Print layout preset') + '">' + opts + '</select>' +
         '<div class="preset-summary">' + summary + '</div>' +
-        '<button class="back-link" data-action="presetToggleEdit" type="button">' + (sc.edit ? 'Hide options ▴' : 'Customise ▾') + '</button>' +
+        (keepOpen ? '' : '<button class="back-link" data-action="presetToggleEdit" type="button">' + (sc.edit ? 'Hide options ▴' : 'Customise ▾') + '</button>') +
         edit +
       '</div>';
   }
@@ -3503,6 +3895,7 @@
       if (st.showTeam && r.team) { var tm = document.createElement("div"); tm.className = "print-card-team"; tm.textContent = r.team; front.appendChild(tm); }
       front.appendChild(makeQrCanvas(r.id, 400));
       if (st.showDietary && r.dietary) { var dt = document.createElement("div"); dt.className = "print-card-dietary"; dt.innerHTML = "&#127869; DIETARY"; front.appendChild(dt); }
+      if (st.showAllergy && r.allergy) { var al = document.createElement("div"); al.className = "print-card-dietary print-card-allergy"; al.innerHTML = "&#9888; ALLERGY"; front.appendChild(al); }
       if (st.showId) { var idEl = document.createElement("div"); idEl.className = "print-card-id"; idEl.textContent = r.id; front.appendChild(idEl); }
 
       var back = document.createElement("div");
@@ -3558,7 +3951,7 @@
         var id = img.getAttribute("data-print-photo-id");
         if (!tried && BACKEND_URL && id) {
           tried = true;
-          fetch(BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + "action=photo&id=" + encodeURIComponent(id))
+          fetch(apiBase() + "action=photo&id=" + encodeURIComponent(id))
             .then(function (x) { return x.json(); })
             .then(function (d) {
               if (d && d.ok && d.dataUri) { var r = byId(state.registrants, id); if (r) r.photo = d.dataUri; img.src = d.dataUri; }
@@ -3579,8 +3972,10 @@
     }, 8000);
   }
 
-  function renderPrintCards(ids, st) {
-    var container = document.getElementById("printSheet");
+  // target: where to draw (default: the hidden #printSheet that window.print() uses). The Print
+  // tab's live preview draws page 1 into its own box with the same code, so what you see is what prints.
+  function renderPrintCards(ids, st, target) {
+    var container = target || document.getElementById("printSheet");
     container.innerHTML = "";
     container.classList.toggle("is-fold", !!st.fold);
     if (st.fold) { renderFoldCards(ids, st, container); return; }
@@ -3640,6 +4035,12 @@
         dietEl.innerHTML = "&#127869; DIETARY";
         card.appendChild(dietEl);
       }
+      if (st.showAllergy && r.allergy) {
+        var allergyEl = document.createElement("div");
+        allergyEl.className = "print-card-dietary print-card-allergy";
+        allergyEl.innerHTML = "&#9888; ALLERGY";
+        card.appendChild(allergyEl);
+      }
       if (st.showId) {
         var idEl = document.createElement("div"); idEl.className = "print-card-id"; idEl.textContent = r.id;
         card.appendChild(idEl);
@@ -3649,6 +4050,41 @@
       onPage++;
     });
   }
+
+  // ---------- live preview of one printed page (Print tab, laptop) ----------
+  var MM_PX = 96 / 25.4;
+  function isWide() { try { return window.matchMedia("(min-width: 980px)").matches; } catch (e) { return false; } }
+  function previewPeople(perPage) {
+    var chosen = state.registrants.filter(function (r) { return view.selected.has(r.id); });
+    if (chosen.length) return { ids: chosen.map(function (r) { return r.id; }), sample: false, total: chosen.length };
+    // Nothing ticked yet: show real people so names, teams and dietary badges look realistic.
+    var sample = state.registrants.filter(function (r) { return !r.walkin; }).slice(0, perPage);
+    return { ids: sample.map(function (r) { return r.id; }), sample: true, total: 0 };
+  }
+  function renderPrintPreview() {
+    var frame = document.getElementById("printPreview");
+    if (!frame) return;
+    var st = PSCOPE.lanyard.st, g = gridFor(st);
+    var pick = previewPeople(g.perPage);
+    var holder = document.createElement("div");
+    holder.className = "print-preview-holder";
+    renderPrintCards(pick.ids.slice(0, g.perPage), st, holder);
+    frame.innerHTML = "";
+    frame.appendChild(holder);
+    var scale = frame.clientWidth / (210 * MM_PX);
+    holder.style.transform = "scale(" + scale + ")";
+    frame.style.height = Math.round(297 * MM_PX * scale) + "px";
+    var head = document.getElementById("printPreviewInfo");
+    if (head) {
+      var pages = pick.total ? Math.ceil(pick.total / g.perPage) : 0;
+      head.textContent = pick.sample
+        ? "Example page with the first " + Math.min(g.perPage, pick.ids.length) + " people. Tick people to preview them."
+        : "Page 1 of " + pages + " · " + pick.total + " selected";
+    }
+  }
+  window.addEventListener("resize", function () {
+    if (view.screen === "tab" && view.activeTab === "print") renderPrintPreview();
+  });
 
   function finishPrint(ids) {
     lastPrintedBatch = ids.slice();
@@ -3738,7 +4174,6 @@
     mergeLocalWalkins();
     view = defaultView();
     lastUpdatedRegistrant = null;
-    lastUpdatedActivity = null;
     lastPrintedBatch = [];
     render();
   }
@@ -3795,13 +4230,35 @@
   function renderScreen() {
     var el = document.getElementById("screen");
     var caption = document.getElementById("phoneCaption");
+    // Lets the laptop layout style each screen (e.g. two columns for a person, grids for lists).
+    el.className = "phone-content screen-" + (view.screen === "tab" ? "tab-" + view.activeTab : view.screen);
 
     if (view.screen === "tab" && view.activeTab === "dashboard") {
-      caption.textContent = "A live snapshot of the Sheet. Lost people and check-ins refresh about every half minute.";
+      caption.textContent = "A live snapshot of the Sheet. Lost people and check-ins show up within seconds.";
       var totalCount = state.registrants.length;
       var checkedInCount = state.registrants.filter(function (r) { return r.checkedIn; }).length;
       var pct = totalCount ? Math.round((checkedInCount / totalCount) * 100) : 0;
       var lostList = state.registrants.filter(function (r) { return r.lost; });
+      var pickupsNeeded = state.registrants.filter(function (r) { return r.needsPickup; }).length;
+      var pickupsDone = state.registrants.filter(function (r) { return r.needsPickup && r.pickedUp; }).length;
+      // Checked in per team, so team leaders can see who's still missing.
+      var teams = {};
+      state.registrants.forEach(function (r) {
+        var t = r.team || "No team";
+        if (!teams[t]) teams[t] = { total: 0, inn: 0 };
+        teams[t].total++;
+        if (r.checkedIn) teams[t].inn++;
+      });
+      var teamNames = Object.keys(teams).sort();
+      var teamBreakdown = teamNames.length > 1
+        ? '<div class="card team-breakdown"><div class="task-head" style="margin:0 0 8px"><span>Checked in by team</span><span class="mono">' + teamNames.length + ' teams</span></div>' +
+          teamNames.map(function (t) {
+            var tp = teams[t].total ? Math.round(teams[t].inn / teams[t].total * 100) : 0;
+            return '<div class="team-row"><span class="team-row-name">' + esc(t) + '</span>' +
+              '<div class="capacity-track"><div class="capacity-fill" style="width:' + tp + '%"></div></div>' +
+              '<span class="capacity-label mono">' + teams[t].inn + '/' + teams[t].total + '</span></div>';
+          }).join("") + '</div>'
+        : '';
 
       var lostPanel;
       if (lostList.length) {
@@ -3833,6 +4290,8 @@
         '<div class="stat-grid">' +
           '<div class="stat-tile"><span class="stat-value mono">' + totalCount + '</span><span class="stat-label">Registered</span></div>' +
           '<div class="stat-tile"><span class="stat-value mono">' + checkedInCount + '</span><span class="stat-label">Checked in</span></div>' +
+          '<div class="stat-tile"><span class="stat-value mono">' + (totalCount - checkedInCount) + '</span><span class="stat-label">Still to arrive</span></div>' +
+          '<div class="stat-tile"><span class="stat-value mono">' + pickupsDone + ' / ' + pickupsNeeded + '</span><span class="stat-label">Airport pickups done</span></div>' +
         '</div>' +
         '<div class="card">' +
           '<div class="capacity-row">' +
@@ -3841,6 +4300,7 @@
           '</div>' +
           '<div class="id-print-note" style="margin-top:6px">' + checkedInCount + ' of ' + totalCount + ' registrants checked in so far</div>' +
         '</div>' +
+        teamBreakdown +
         staffPresenceHtml();
       return;
     }
@@ -4036,23 +4496,51 @@
           r.stake.toLowerCase().indexOf(pterm) !== -1) return true;
         return !!r.details && r.details.some(function (kv) { return String(kv[1]).toLowerCase().indexOf(pterm) !== -1; });
       });
+      var personRow = function (r, note) {
+        var lostBadge = (r.walkin ? ' <span class="pill pill-walkin pill-sm">Walk-in</span>' : '') +
+          (r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '') +
+          (r.allergy ? ' <span class="pill pill-critical pill-sm" title="Allergy: ' + esc(r.allergy) + '">&#9888; Allergy</span>' : '') +
+          (r.checkedIn ? ' <span class="pill pill-success pill-sm">In</span>' : '');
+        return '<button class="lookup-item has-avatar" data-action="scan" data-id="' + esc(r.id) + '">' +
+          avatarHtml(r) +
+          '<span class="lookup-text">' +
+            '<span class="lookup-name">' + esc(r.name) + lostBadge + '</span>' +
+            '<span class="lookup-meta">' + esc(r.ward || '') + ' &middot; ' + esc(r.stake || '') + (r.team ? ' &middot; ' + esc(r.team) : '') + (note ? ' &middot; <strong>' + esc(note) + '</strong>' : '') + '</span>' +
+          '</span>' +
+        '</button>';
+      };
+      // Long lists are capped so typing stays quick on a phone; searching narrows them.
+      var PEOPLE_CAP = 200;
+      var shownPeople = presults.slice(0, PEOPLE_CAP);
       var prows = presults.length
-        ? presults.map(function (r) {
-            var lostBadge = (r.walkin ? ' <span class="pill pill-walkin pill-sm">Walk-in</span>' : '') +
-              (r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '');
-            return '<button class="lookup-item has-avatar" data-action="scan" data-id="' + r.id + '">' +
-              avatarHtml(r) +
-              '<span class="lookup-text">' +
-                '<span class="lookup-name">' + esc(r.name) + lostBadge + '</span>' +
-                '<span class="lookup-meta">' + esc(r.ward) + ' &middot; ' + esc(r.stake) + '</span>' +
-              '</span>' +
-            '</button>';
-          }).join("")
-        : '<div class="empty-note">No one matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;.</div>';
+        ? shownPeople.map(function (r) { return personRow(r); }).join("") +
+          (presults.length > PEOPLE_CAP ? '<div class="empty-note">Showing ' + PEOPLE_CAP + ' of ' + presults.length + ' &mdash; type a name, ward or phone number to narrow it down.</div>' : '')
+        : '<div class="empty-note">No one on this phone matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;.</div>';
+
+      // Phone / email matches come from the Sheet (those aren't kept on every phone).
+      var rs = remoteSearch;
+      var remoteHtml = "";
+      if (rs && rs.term === view.peopleSearch.trim() && pterm) {
+        var localIds = {};
+        shownPeople.forEach(function (r) { localIds[r.id] = true; });
+        var extra = (rs.results || []).filter(function (x) { return !localIds[x.id] || x.matchedOn !== "name"; });
+        if (rs.status === "loading") remoteHtml = '<div class="empty-note">Searching the Sheet for phone numbers and emails&hellip;</div>';
+        else if (rs.status) remoteHtml = '<div class="empty-note">' + esc(rs.status) + '</div>';
+        else if (extra.length) {
+          remoteHtml = '<div class="task-head" style="margin-top:6px"><span>Matched in the Sheet</span><span class="mono">' + extra.length + '</span></div>' +
+            '<div class="lanyard-list">' + extra.map(function (x) {
+              var local = byId(state.registrants, x.id) || mapServerRegistrant(x);
+              return personRow(local, "matched " + x.matchedOn);
+            }).join("") + '</div>';
+        }
+      }
+
+      if (!presults.length && remoteHtml && remoteHtml.indexOf("Matched in the Sheet") !== -1) prows = "";
 
       el.innerHTML =
         '<h2 class="screen-title">People</h2>' +
-        '<input class="text-input" id="peopleSearch" type="text" placeholder="Search name, ward, stake or any detail" value="' + esc(view.peopleSearch) + '">' +
+        '<input class="text-input" id="peopleSearch" type="search" inputmode="search" placeholder="Name, ward, stake, phone or email" value="' + esc(view.peopleSearch) + '">' +
+        remoteHtml +
         '<div class="lanyard-list">' + prows + '</div>';
 
       var peopleInput = document.getElementById("peopleSearch");
@@ -4092,6 +4580,8 @@
           '<button class="btn btn-sm btn-danger" data-action="askResetPrinted" type="button">Reset printing</button>' +
         '</div>' +
         (view.printToast ? '<div class="toast">' + esc(view.printToast) + '</div>' : '') +
+        '<div class="print-layout">' +
+        '<div class="print-col">' +
         presetPanelHtml("lanyard", view.selected.size) +
         '<div class="print-toolbar">' +
           '<input class="text-input" id="printSearch" type="text" placeholder="Search by name or ward" value="' + esc(view.printSearch) + '">' +
@@ -4109,8 +4599,16 @@
           '<button class="btn btn-primary btn-block" data-action="generatePrint" type="button"' + (view.selected.size ? '' : ' disabled') + '>' +
             'Generate &amp; print (' + view.selected.size + ')' +
           '</button>' +
+        '</div>' +
+        '</div>' +
+        // Laptop only (hidden on phones by CSS): one A4 page exactly as it will print, redrawn as you change the layout.
+        '<div class="print-preview-col" aria-label="Print preview">' +
+          '<div class="print-preview-head"><strong>Preview</strong><span id="printPreviewInfo"></span></div>' +
+          '<div class="print-preview-frame" id="printPreview"></div>' +
+        '</div>' +
         '</div>';
 
+      if (isWide()) renderPrintPreview();
       var searchInput = document.getElementById("printSearch");
       if (searchInput) {
         searchInput.addEventListener("input", function () { setPrintSearch(searchInput.value); });
@@ -4122,6 +4620,17 @@
       caption.textContent = "Point this app at your Apps Script backend to work off the live Sheet.";
       el.innerHTML =
         '<h2 class="screen-title">Settings</h2>' +
+        '<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">' +
+          '<div style="display:flex;flex-direction:column;gap:2px;min-width:0">' +
+            '<div style="font-size:13.5px;font-weight:600">Scan sounds &amp; vibration</div>' +
+            '<div style="font-size:12px;color:var(--muted)">Different beeps for checked in, already in, lost and unknown codes. iPhones play sound only (no vibration) and stay quiet on silent.</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex:none">' +
+            '<button class="btn btn-sm" data-action="testSound" type="button">Test</button>' +
+            '<button class="btn btn-sm' + (scanSoundsOn ? ' btn-primary' : '') + '" data-action="toggleSounds" type="button" aria-pressed="' + (scanSoundsOn ? 'true' : 'false') + '">' + (scanSoundsOn ? 'On' : 'Off') + '</button>' +
+          '</div>' +
+        '</div>' +
+        installCardHtml() +
         '<div class="card" style="display:flex;flex-direction:column;gap:10px">' +
           '<div style="font-size:13.5px;font-weight:600">Something not working?</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
@@ -4162,6 +4671,8 @@
         '<div class="card">' +
           '<label for="settingsUrlInput" class="screen-sub" style="margin:0 0 6px">Apps Script /exec URL</label>' +
           '<input class="text-input mono" id="settingsUrlInput" type="text" placeholder="Paste your Apps Script /exec URL here" value="' + esc(settingsUrlDraft) + '" autocomplete="off" style="width:100%">' +
+          '<label for="settingsKeyInput" class="screen-sub" style="margin:10px 0 6px;display:block">Access code <span style="color:var(--muted)">(only if the Sheet has one)</span></label>' +
+          '<input class="text-input mono" id="settingsKeyInput" type="text" placeholder="Leave blank if none" value="' + esc(ACCESS_KEY) + '" autocomplete="off" autocapitalize="off" style="width:100%">' +
           '<div style="display:flex;gap:10px;margin-top:10px">' +
             '<button class="btn btn-primary" id="connectBtn" type="button">Connect</button>' +
             '<button class="btn" id="resetBtn" type="button">Reload</button>' +
@@ -4210,7 +4721,7 @@
           '</div>';
         })();
       var shareQrBox = document.getElementById("shareQrBox");
-      if (shareQrBox) shareQrBox.appendChild(makeQrCanvas(view.shareStep === 1 ? APP_SITE_URL : BACKEND_URL, 320));
+      if (shareQrBox) shareQrBox.appendChild(makeQrCanvas(view.shareStep === 1 ? APP_SITE_URL : setupLink(), 320));
 
       var settingsInput = document.getElementById("settingsUrlInput");
       if (settingsInput) {
@@ -4268,9 +4779,17 @@
         ? '<span class="pill pill-success"><span class="pill-dot"></span>Checked in ' + esc(r.checkedInAt) + '</span>'
         : '<span class="pill pill-neutral"><span class="pill-dot"></span>Not checked in</span>';
 
+      // Scanned a lanyard that's already been used: could be a re-scan, could be a shared lanyard.
+      var alreadyWarn = view.scanWarn === r.id && r.checkedIn
+        ? '<div class="already-warn" role="alert"><strong>Already checked in' + (r.checkedInAt ? ' at ' + esc(String(r.checkedInAt).replace(/^\d+ \w+, /, "")) : '') + (r.checkedInBy ? ' by ' + esc(r.checkedInBy) : '') + '</strong>' +
+            '<span>Check the photo matches the person in front of you.</span></div>'
+        : '';
+
       var flags = "";
       var flagPills = [];
       if (r.walkin) flagPills.push('<span class="pill pill-walkin">Walk-in</span>');
+      if (r.allergy) flagPills.push('<span class="pill pill-critical pill-strong">&#9888; Allergy: ' + esc(r.allergy) + '</span>');
+      if (r.medical) flagPills.push('<button class="pill pill-critical pill-btn" data-action="personTab" data-tab="details" type="button">&#9877; Medical notes &middot; see Details</button>');
       if (r.dietary) flagPills.push('<span class="pill pill-warning">' + esc(r.dietary) + '</span>');
       if (flagPills.length) flags = '<div class="flag-row">' + flagPills.join("") + '</div>';
 
@@ -4298,7 +4817,7 @@
         '</div>';
 
       var lostSection = r.lost
-        ? '<div class="alert-lost">&#128680; Reported lost at ' + esc(r.lostAt) + '</div>' +
+        ? '<div class="alert-lost">&#128680; Reported lost at ' + esc(r.lostAt) + (r.lostBy ? ' by ' + esc(r.lostBy) : '') + '</div>' +
           '<button class="btn btn-block" data-action="toggleLost" data-id="' + r.id + '" type="button">Mark as found</button>'
         : '<button class="btn btn-block btn-danger" data-action="toggleLost" data-id="' + r.id + '" type="button">&#128680; Mark as lost</button>';
 
@@ -4315,7 +4834,7 @@
           var done = !!r[t.field];
           var meta = [];
           if (t.key === "shirt" && shirtText(r)) meta.push(esc(shirtText(r)));
-          meta.push(done ? "Done" + (r[t.atField] ? " " + esc(r[t.atField]) : "") : "Not yet");
+          meta.push(done ? "Done" + (r[t.atField] ? " " + esc(r[t.atField]) : "") + (r[t.field + "By"] ? " by " + esc(r[t.field + "By"]) : "") : "Not yet");
           return '<div class="task-row' + (done ? ' is-done' : '') + '">' +
             '<div class="task-text"><span class="task-name">' + esc(t.label) + '</span><span class="task-meta">' + meta.join(" &middot; ") + '</span></div>' +
             '<button class="pickup-check' + (done ? ' is-checked' : '') + '" data-action="askTask" data-id="' + r.id + '" data-task="' + t.key + '" type="button" role="checkbox" aria-checked="' + (done ? 'true' : 'false') + '" aria-label="' + esc(t.label) + ' for ' + esc(r.name) + '">&#10003;</button>' +
@@ -4326,7 +4845,7 @@
             '<div class="task-head"><span>Check-in list</span><span class="mono">' + doneCount + ' / ' + CHECKIN_TASKS.length + '</span></div>' +
             taskRows +
             '<div class="task-meta" style="text-align:center">' +
-              (r.checkedIn ? '&#10003; Checked in ' + esc(r.checkedInAt || '') : 'They\'re checked in once everything above is ticked') +
+              (r.checkedIn ? '&#10003; Checked in ' + esc(r.checkedInAt || '') + (r.checkedInBy ? ' by ' + esc(r.checkedInBy) : '') : 'They\'re checked in once everything above is ticked') +
             '</div>' +
           '</div>';
       } else if (view.personTab === "details") {
@@ -4349,9 +4868,15 @@
           '<div class="person-qr-label mono">Lanyard QR &middot; ' + esc(r.id) + '</div>' +
         '</div>';
 
+      // Two columns on a laptop (who they are | check-in list); one column on a phone, same order.
       el.innerHTML =
-        '<button class="back-link" data-action="backFromScanned" type="button">&larr; Back</button>' +
-        idCard + lostSection + tabs + body + qrCard;
+        '<div class="person-layout">' +
+          '<div class="person-col person-col-a">' +
+            '<button class="back-link" data-action="backFromScanned" type="button">&larr; Back</button>' +
+            alreadyWarn + idCard + lostSection +
+          '</div>' +
+          '<div class="person-col person-col-b">' + tabs + body + qrCard + '</div>' +
+        '</div>';
 
       var qrBox = document.getElementById("personQrBox");
       if (qrBox) qrBox.appendChild(makeQrCanvas(r.id, 320));
@@ -4460,62 +4985,6 @@
       }
       return;
     }
-  }
-
-  // ---------- rendering: sheet panels ----------
-
-  function renderSheets() {
-    var rBody = document.getElementById("registrantsBody");
-    rBody.innerHTML = state.registrants.map(function (r) {
-      var cls = r.id === lastUpdatedRegistrant || lastPrintedBatch.indexOf(r.id) !== -1 ? " class=\"just-updated\"" : "";
-      var printed = r.qrPrinted
-        ? '<span class="pill pill-success pill-sm">Yes</span>'
-        : '<span class="pill pill-neutral pill-sm">No</span>';
-      var checkin = r.checkedIn
-        ? '<span class="pill pill-success"><span class="pill-dot"></span>' + esc(r.checkedInAt) + '</span>'
-        : '<span class="pill pill-neutral"><span class="pill-dot"></span>Not yet</span>';
-      var bookings = r.bookings.length
-        ? r.bookings.map(function (aid) { var a = byId(state.activities, aid); return a ? esc(a.name) : aid; }).join(", ")
-        : '<span class="cell-muted">None</span>';
-      var lost = r.lost
-        ? '<span class="pill pill-critical pill-sm">&#128680; ' + esc(r.lostAt) + '</span>'
-        : '<span class="pill pill-neutral pill-sm">No</span>';
-      var dietaryCell = r.dietary
-        ? '<span class="pill pill-warning pill-sm">' + esc(r.dietary) + '</span>'
-        : '<span class="cell-muted">None</span>';
-      return "<tr" + cls + ">" +
-        "<td>" + esc(r.name) + "</td>" +
-        "<td class=\"cell-muted\">" + esc(r.ward) + "</td>" +
-        "<td class=\"cell-id mono\">" + esc(r.id) + "</td>" +
-        "<td>" + dietaryCell + "</td>" +
-        "<td>" + printed + "</td>" +
-        "<td>" + checkin + "</td>" +
-        "<td>" + lost + "</td>" +
-        "<td>" + bookings + "</td>" +
-      "</tr>";
-    }).join("");
-    lastPrintedBatch = [];
-
-    var aBody = document.getElementById("activitiesBody");
-    aBody.innerHTML = state.activities.map(function (a) {
-      var cap = capacityState(a);
-      var cls = a.id === lastUpdatedActivity ? " class=\"just-updated\"" : "";
-      var fillClass = cap.status === "full" ? "is-critical" : (cap.status === "near" ? "is-warning" : "");
-      var statusPill = cap.status === "full"
-        ? '<span class="pill pill-critical">Full</span>'
-        : (cap.status === "near" ? '<span class="pill pill-warning">Nearly full</span>' : '<span class="pill pill-success">Open</span>');
-      return "<tr" + cls + ">" +
-        "<td>" + esc(a.name) + "</td>" +
-        "<td class=\"cell-muted\">" + esc(a.time) + "</td>" +
-        "<td>" +
-          '<div class="capacity-row" style="min-width:140px">' +
-            '<div class="capacity-track"><div class="capacity-fill ' + fillClass + '" style="width:' + (cap.ratio * 100) + '%"></div></div>' +
-            '<span class="capacity-label mono">' + cap.taken + " / " + a.capacity + '</span>' +
-          '</div>' +
-        "</td>" +
-        "<td>" + statusPill + "</td>" +
-      "</tr>";
-    }).join("");
   }
 
   function updateTabBar() {
@@ -4742,13 +5211,17 @@
     if (t) {
       var action = t.getAttribute("data-action");
       if (action === "scan") scan(t.getAttribute("data-id"));
+      else if (action === "dismissLost") dismissLostAlert(t.getAttribute("data-id"));
+      else if (action === "toggleSounds") setScanSounds(!scanSoundsOn);
+      else if (action === "installApp") { if (deferredInstall) { deferredInstall.prompt(); deferredInstall.userChoice.then(function () { deferredInstall = null; render(); }); } }
+      else if (action === "testSound") { unlockAudio(); var seq = ["success", "already", "lost", "unknown"]; seq.forEach(function (k, i) { setTimeout(function () { var was = scanSoundsOn; scanSoundsOn = true; scanFeedback(k); scanSoundsOn = was; }, i * 900); }); }
+      else if (action === "openLostList") { stopCamera(); view.screen = "tab"; view.activeTab = "dashboard"; render(); }
       else if (action === "selectTab") selectTab(t.getAttribute("data-tab"));
       else if (action === "openCamera") openCamera();
       else if (action === "cancelCamera") cancelCamera();
       else if (action === "manualGo") submitManualId(document.getElementById("manualId").value);
       else if (action === "checkin") checkIn(t.getAttribute("data-id"));
       else if (action === "toggleLost") toggleLost(t.getAttribute("data-id"));
-      else if (action === "book") book(t.getAttribute("data-id"), t.getAttribute("data-activity"));
       else if (action === "backFromScanned") backFromScanned();
       else if (action === "personTab") setPersonTab(t.getAttribute("data-tab"));
       else if (action === "askPickup") askPickup(t.getAttribute("data-id"));
@@ -4794,6 +5267,20 @@
     if (e.target && e.target.id === "connectBtn") connectBackend();
   });
 
+  // While typing a number in the print options, update the preview right away (the full screen
+  // redraw waits for "change", so the box you're typing in keeps focus).
+  document.addEventListener("input", function (e) {
+    var tgt = e.target;
+    if (!tgt || !tgt.getAttribute || !tgt.getAttribute("data-pfield") || tgt.type === "checkbox") return;
+    if (pscopeOf(tgt) !== "lanyard" || !document.getElementById("printPreview")) return;
+    var f = tgt.getAttribute("data-pfield");
+    if (PRESET_FIELDS.indexOf(f) === -1 || tgt.value === "") return;
+    var o = clone(PSCOPE.lanyard.st);
+    o[f] = tgt.value;
+    PSCOPE.lanyard.st = normalizeSettings(o);
+    renderPrintPreview();
+  });
+
   document.addEventListener("change", function (e) {
     var tgt = e.target;
     if (tgt && tgt.getAttribute && tgt.getAttribute("data-preset-select")) { selectPreset(pscopeOf(tgt), tgt.value); return; }
@@ -4816,6 +5303,44 @@
   updateSyncBox();
   if (BACKEND_URL) loadFromBackend();
   pumpWrites();
+
+  // ---------- installable app + offline copy (sw.js) ----------
+  var deferredInstall = null;
+  var offlineReady = false;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    if (view.screen === "tab" && view.activeTab === "settings") render();
+  });
+  window.addEventListener("appinstalled", function () { deferredInstall = null; if (view.activeTab === "settings") render(); });
+  function isInstalled() {
+    try { return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true; } catch (e) { return false; }
+  }
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        return navigator.serviceWorker.ready;
+      }).then(function () {
+        offlineReady = true;
+        if (view.screen === "tab" && view.activeTab === "settings") render();
+      }).catch(function () { /* offline copy not available; the app still works online */ });
+    });
+  }
+  function installCardHtml() {
+    var ua = navigator.userAgent || "";
+    var ios = /iPhone|iPad|iPod/i.test(ua);
+    var how;
+    if (isInstalled()) how = '<div class="screen-sub" style="margin:0">&#10003; Installed. Open it from your home screen.</div>';
+    else if (deferredInstall) how = '<button class="btn btn-primary btn-block" data-action="installApp" type="button">Install app</button>';
+    else if (ios) how = '<div class="screen-sub" style="margin:0">In <strong>Safari</strong>: tap the Share button, then <strong>Add to Home Screen</strong>.</div>';
+    else how = '<div class="screen-sub" style="margin:0">In <strong>Chrome</strong>: tap the &#8942; menu, then <strong>Install app</strong> (or <strong>Add to Home screen</strong>).</div>';
+    return '<div class="card" style="display:flex;flex-direction:column;gap:8px">' +
+      '<div style="font-size:13.5px;font-weight:600">Install on this phone</div>' +
+      '<div class="screen-sub" style="margin:0">Opens full-screen like a normal app, and still opens with bad Wi-Fi or no signal. Changes made offline are saved on the phone and sent when it reconnects.</div>' +
+      how +
+      '<div class="screen-sub mono" style="margin:0;font-size:11px">' + (offlineReady ? '&#10003; Offline copy ready on this phone' : 'Offline copy: not ready yet (needs one load over the internet)') + '</div>' +
+    '</div>';
+  }
 })();
 </script>
 
