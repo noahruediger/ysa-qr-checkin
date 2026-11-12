@@ -30,7 +30,7 @@ function logSheet_() {
 
 var LOG_LABELS = {
   checkin: 'Checked in', uncheckin: 'Check-in undone', setLost: 'Lost flag', toggleLost: 'Lost flag',
-  markPrinted: 'Lanyards printed', book: 'Booked activity', markPickedUp: 'Airport pickup',
+  markPrinted: 'Lanyards printed', markPickedUp: 'Airport pickup',
   markTask: 'Check-in list', resetPrinted: 'Reset printing', registerWalkin: 'Walk-in signed up'
 };
 
@@ -42,7 +42,6 @@ function logAction_(body, out) {
     if (a === 'setLost' || a === 'toggleLost') detail = r && r.lost ? 'Marked LOST' : 'Marked found';
     else if (a === 'markTask') detail = (body.task === 'pack' ? 'Pack' : body.task === 'shirt' ? 'Shirt' : body.task) + (isTrue_(body.value) ? ' given' : ' untick');
     else if (a === 'markPickedUp') detail = isTrue_(body.value) ? 'Picked up' : 'Pickup undone';
-    else if (a === 'book') detail = String(body.activityId || '');
     else if (a === 'markPrinted') detail = (body.ids ? body.ids.length : 1) + ' card(s)';
     else if (a === 'resetPrinted') detail = (out.reset || 0) + ' reset';
     var ids = a === 'markPrinted' ? '' : String(body.id || (r && r.id) || '');

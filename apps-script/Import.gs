@@ -7,7 +7,7 @@
  * QR ID (YSA-0001, YSA-0002 ...), and keeps their answers up to date if they edit the form.
  *
  * It never touches the columns the app owns (Checked In, Lost, Pack/Shirt Given, QR Printed,
- * Picked Up, Team, Activity Bookings, the "By" columns ...), so running it again is always safe.
+ * Picked Up, Team, the "By" columns ...), so running it again is always safe.
  * People are matched by email address (or by timestamp + name if there's no email). Nobody is
  * ever deleted here: if a response disappears from the form sheet, their row stays.
  *

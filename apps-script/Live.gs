@@ -13,7 +13,7 @@
 
 // App actions that change people. Anything else (problems, staff, walk-in card count) doesn't bump rev.
 var REV_ACTIONS = {
-  checkin: 1, uncheckin: 1, setLost: 1, toggleLost: 1, markPrinted: 1, book: 1,
+  checkin: 1, uncheckin: 1, setLost: 1, toggleLost: 1, markPrinted: 1,
   markPickedUp: 1, markTask: 1, resetPrinted: 1, registerWalkin: 1
 };
 

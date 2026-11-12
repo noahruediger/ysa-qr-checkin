@@ -27,7 +27,7 @@ Things that can't be done from code. Work through them before the convention, ro
 - [ ] Point every phone at the new Sheet's /exec URL (Settings → Share QR code from your phone makes this quick).
 
 ## 4. Decisions only you can make
-- [ ] **Activity booking**: the code is still there, but there's no button for it in the app anymore and no way to cancel a booking. The test data is also way over capacity (e.g. Talent Show 190 booked for 12 spots). Do you still want booking at the convention? If yes, it needs a booking screen. If no, it can be removed.
+- [x] Activity booking: not needed, so it has been removed from the app and the script. The test Sheet's `Activities` tab and `Activity Bookings` column are no longer used and can be deleted.
 - [ ] Who is **Admin** (only Admin phones can Reset printing once an Admin exists).
 - [ ] Whether lanyards should print the new **ALLERGY** badge (Print → layout options → Allergy pill; off by default).
 

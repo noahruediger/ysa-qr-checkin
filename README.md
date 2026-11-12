@@ -14,7 +14,7 @@ Without a backend connected, the app runs on built-in demo data.
 
 ### 1. Make the Google Sheet
 
-Create a Google Sheet with two tabs, named exactly `Registrants` and `Activities`. The script finds columns by their header name (row 1), so column order doesn't matter and extra columns are fine.
+Create a Google Sheet with a tab named exactly `Registrants` (or let `Import.gs` create it, see **Importing from the registration form**). The script finds columns by their header name (row 1), so column order doesn't matter and extra columns are fine.
 
 **Registrants** — one row per person. Required headers:
 
@@ -28,20 +28,8 @@ Create a Google Sheet with two tabs, named exactly `Registrants` and `Activities
 | `QR Printed`, `QR Printed At` | Filled in by the app |
 | `Checked In`, `Checked In At` | Filled in by the app |
 | `Lost`, `Lost At` | Filled in by the app |
-| `Activity Bookings` | Filled in by the app (comma-separated activity IDs) |
 
-`Photo URL`, `Picked Up`, `Picked Up At`, `Pack Given`, `Pack Given At`, `Shirt Given` and `Shirt Given At` are added automatically the first time the script runs (`Walk-in` and `Registered At` are added with the first walk-in). Every other column (phone, emergency contact, allergies, etc.) shows up on the person's Details page in the app.
-
-**Activities** — one row per activity:
-
-| Header | Example |
-| --- | --- |
-| `Activity ID` | `futsal` |
-| `Activity Name` | `Sports Tournament: Futsal` |
-| `Day/Time` | `Sat 2:30 PM` |
-| `Location` | `Sports Courts` |
-| `Capacity` | `24` |
-| `Baseline Bookings (non-test)` | Spots already taken outside the app (use `0` if none) |
+Any app column that's missing (`QR Printed`, `Checked In`, `Lost`, `Team`, `Photo URL`, `Picked Up`, `Pack Given`, `Shirt Given`, the `… At` and `… By` columns) is added automatically the first time the script runs (`Walk-in` and `Registered At` are added with the first walk-in). Every other column (phone, emergency contact, allergies, etc.) shows up on the person's Details page in the app.
 
 ### 2. Add the Apps Script
 
@@ -143,7 +131,7 @@ The box in the top right shows how the phone is talking to the Sheet:
 - **Offline** plus a number — the Sheet can’t be reached, and that many saves are waiting on the phone.
 - **Synced** — every change has reached the Sheet.
 
-Check-in ticks (pack and shirt), lost flags, pickups and bookings are kept on the phone until the Sheet accepts them, including across a reload. Someone is marked **Checked In** in the Sheet once both pack and shirt are Yes, even if those ticks were made on two different phones. Lost is a set flag (with a confirm), not a toggle. Times are shown in Brisbane local time.
+Check-in ticks (pack and shirt), lost flags and pickups are kept on the phone until the Sheet accepts them, including across a reload. Someone is marked **Checked In** in the Sheet once both pack and shirt are Yes, even if those ticks were made on two different phones. Lost is a set flag (with a confirm), not a toggle. Times are shown in Brisbane local time.
 
 Each open app asks the Sheet "has anything changed?" every 8 seconds (a tiny request that doesn't read the Sheet), and only downloads everyone again when something has. It also does a full refresh every 2 minutes as a safety net. (With an older Sheet script that doesn't have `Live.gs`, it falls back to a full refresh every 25 seconds.) An unrecognised QR code is checked against the Sheet once before it's reported as unknown. If the Sheet is busy or slow, a save is cut off after about 45 seconds and retried, so one stuck save can’t hold up the rest.
 

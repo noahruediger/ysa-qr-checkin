@@ -1,5 +1,5 @@
 /**
- * QR Check-In & Activity Booking — TEST webhook backend.
+ * QR Check-In — webhook backend for the YSA convention check-in app.
  * Bound to the "Brisbane YSA Convention — QR Check-In TEST" Google Sheet.
  *
  * Deploy: Extensions > Apps Script (paste this whole file as Code.gs) >
@@ -12,7 +12,6 @@
  */
 
 var SHEET_REGISTRANTS = 'Registrants';
-var SHEET_ACTIVITIES = 'Activities';
 
 function getSheet_(name) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -102,8 +101,6 @@ function rowToRegistrant_(row, map) {
   function g(name) { return map[name] ? row[map[name] - 1] : ''; }
   function opt(name) { return map[name] ? (String(row[map[name] - 1] || '').trim() || null) : null; }
   var yes = function (v) { return String(v).trim().toLowerCase() === 'yes'; };
-  var bookingsStr = g('Activity Bookings');
-  var bookings = bookingsStr ? String(bookingsStr).split(',').map(function (s) { return s.trim(); }).filter(String) : [];
   var dietDetail = realText_(g('Dietary Detail'));
   var dietAnswer = realText_(g('Dietary Restrictions'));
   var dietary = dietDetail || (isYes_(dietAnswer) ? 'Dietary requirement' : (dietAnswer && !/^y/i.test(dietAnswer) ? dietAnswer : '')) || null;
@@ -129,7 +126,6 @@ function rowToRegistrant_(row, map) {
     needsPickup: isYes_(g('Airport Pickup Needed')),
     pickupTime: asAppTime_(g('Pickup Time')),
     team: g('Team') || null,
-    bookings: bookings,
     photo: photoFor_(row, map),
     pickedUp: map['Picked Up'] ? yes(row[map['Picked Up'] - 1]) : false,
     pickedUpAt: map['Picked Up At'] ? asAppTime_(row[map['Picked Up At'] - 1]) : null,
@@ -144,26 +140,6 @@ function rowToRegistrant_(row, map) {
     shirtGivenBy: opt('Shirt Given By'),
     pickedUpBy: opt('Picked Up By')
   };
-}
-
-function readActivities_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ACTIVITIES);
-  if (!sh) return [];   // activities are optional
-  var map = headerMap_(sh);
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return [];
-  var values = sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).getValues();
-  return values.map(function (row) {
-    function g(name) { return row[col_(map, name) - 1]; }
-    return {
-      id: String(g('Activity ID')).trim(),
-      name: g('Activity Name'),
-      time: g('Day/Time'),
-      location: g('Location'),
-      capacity: Number(g('Capacity')) || 0,
-      otherBookings: Number(g('Baseline Bookings (non-test)')) || 0
-    };
-  });
 }
 
 function findRowByQrId_(reg, id) {
@@ -283,14 +259,13 @@ function doGet(e) {
         var limit = Math.max(1, Math.min(1000, parseInt(e.parameter.limit, 10) || 100));
         var pageRows = reg.rows.slice(offset, offset + limit);
         var page = { ok: true, total: reg.rows.length, offset: offset, registrants: pageRows.map(function (row) { return rowToRegistrant_(row, reg.map); }) };
-        if (offset === 0) { page.activities = readActivities_(); page.walkinPrintedTo = getWalkinPrintedTo_(); page.rev = getRevNumber_(); }
+        if (offset === 0) { page.walkinPrintedTo = getWalkinPrintedTo_(); page.rev = getRevNumber_(); }
         return jsonOut_(page);
       }
       var rev = getRevNumber_();   // read before the rows, so a change made meanwhile still shows as new
       var registrants = reg.rows.map(function (row) { return rowToRegistrant_(row, reg.map); });
       syncLostFromRegistrants_(registrants);   // Live.gs
-      var activities = readActivities_();
-      return jsonOut_({ ok: true, rev: rev, registrants: registrants, activities: activities, walkinPrintedTo: getWalkinPrintedTo_() });
+      return jsonOut_({ ok: true, rev: rev, registrants: registrants, walkinPrintedTo: getWalkinPrintedTo_() });
     }
     if (action === 'rev') return jsonOut_(revInfo_());   // Live.gs
     if (action === 'search') return jsonOut_(searchPeople_(e.parameter.q));
@@ -396,28 +371,6 @@ function handlePost_(body) {
     return ({ ok: true, printed: ids });
   }
 
-  if (action === 'book') {
-    var activities = readActivities_();
-    var activity = activities.filter(function (a) { return a.id === body.activityId; })[0];
-    if (!activity) return ({ ok: false, error: 'Unknown activity: ' + body.activityId });
-
-    // recompute capacity fresh, inside the lock, to avoid overbooking on simultaneous scans
-    var allRegistrants = reg.rows.map(function (row) { return rowToRegistrant_(row, map); });
-    var taken = activity.otherBookings;
-    allRegistrants.forEach(function (r) { if (r.bookings.indexOf(activity.id) !== -1) taken++; });
-    if (taken >= activity.capacity) return ({ ok: false, error: 'full' });
-
-    var row3 = findRowByQrId_(reg, body.id);
-    if (row3 === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
-    var bCell = sh.getRange(row3, col_(map, 'Activity Bookings'));
-    var current = String(bCell.getValue() || '').split(',').map(function (s) { return s.trim(); }).filter(String);
-    if (current.indexOf(body.activityId) === -1) {
-      current.push(body.activityId);
-      bCell.setValue(current.join(', '));
-    }
-    return ({ ok: true, registrant: rowToRegistrant_(sh.getRange(row3, 1, 1, sh.getLastColumn()).getValues()[0], map) });
-  }
-
   if (action === 'markPickedUp') {
     var rowP = findRowByQrId_(reg, body.id);
     if (rowP === -1) return ({ ok: false, error: 'Unknown ID: ' + body.id });
@@ -480,7 +433,7 @@ function handlePost_(body) {
 // ===================== Photo / pickup / full-details additions =====================
 // Added columns are created automatically on the Registrants tab the first time the script runs.
 // Columns the app writes to. Any that are missing get added to the right of the Registrants tab.
-var EXTRA_COLUMNS = ['Team', 'QR Printed', 'QR Printed At', 'Checked In', 'Checked In At', 'Lost', 'Lost At', 'Activity Bookings',
+var EXTRA_COLUMNS = ['Team', 'QR Printed', 'QR Printed At', 'Checked In', 'Checked In At', 'Lost', 'Lost At',
   'Photo URL', 'Picked Up', 'Picked Up At', 'Pack Given', 'Pack Given At', 'Shirt Given', 'Shirt Given At',
   'Checked In By', 'Lost By', 'Pack Given By', 'Shirt Given By', 'Picked Up By'];
 // Columns that are never sent to phones (government-style ID images etc.). Edit to suit.
