@@ -902,6 +902,89 @@
     .phone-tabbar { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   }
 
+  .team-row { display: grid; grid-template-columns: minmax(80px, 34%) 1fr auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
+  .team-row-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* ---------- Person page columns (phone: one column, laptop: two) ---------- */
+  .person-layout { display: flex; flex-direction: column; gap: 14px; }
+  .person-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  /* ---------- Tablet: use the whole screen, keep the bottom tab bar ---------- */
+  @media (min-width: 521px) and (max-width: 979px) {
+    .page { padding: 0; gap: 0; max-width: none; }
+    .app-wrap { gap: 0; }
+    html, body { overflow: hidden; }
+    .app-shell { position: fixed; inset: 0; max-width: none; height: auto; margin: 0; border: none; border-radius: 0; box-shadow: none; }
+    .phone-content { padding: 52px max(24px, calc((100% - 760px) / 2)) 24px; }
+    .phone-tabbar { padding-left: max(12px, calc((100% - 760px) / 2)); padding-right: max(12px, calc((100% - 760px) / 2)); }
+    .tabbar-btn { font-size: 11px; }
+    .tabbar-btn svg { width: 20px; height: 20px; }
+  }
+
+  /* ---------- Laptop: full screen, sidebar on the left, content uses the width ---------- */
+  @media (min-width: 980px) {
+    .page { padding: 0; gap: 0; max-width: none; }
+    .app-wrap { gap: 0; }
+    html, body { overflow: hidden; }
+    .app-shell {
+      position: fixed; inset: 0; max-width: none; height: auto; margin: 0;
+      border: none; border-radius: 0; box-shadow: none;
+      display: grid; grid-template-columns: 224px 1fr; grid-template-rows: 1fr;
+    }
+    .phone-tabbar {
+      grid-column: 1; grid-row: 1;
+      flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 4px;
+      padding: 20px 14px; border-top: none; border-right: 1px solid var(--line); background: var(--surface-2);
+    }
+    .phone-tabbar::before {
+      content: "QR Check-In"; display: block; padding: 2px 10px 16px;
+      font-family: "Fraunces", Georgia, serif; font-size: 20px; font-weight: 600; color: var(--ink);
+    }
+    .tabbar-btn {
+      flex: none; flex-direction: row; justify-content: flex-start; gap: 12px;
+      font-size: 14px; padding: 10px 12px; border-radius: var(--radius-m); text-align: left; line-height: 1.2;
+    }
+    .tabbar-btn svg { width: 20px; height: 20px; flex: none; }
+    .tabbar-btn:hover { background: var(--surface); color: var(--ink); }
+    .tabbar-btn.active { background: var(--accent-tint); color: var(--accent-ink); font-weight: 600; }
+    .tabbar-btn { order: 1; }
+    .tabbar-scan {
+      order: 0; width: auto; height: 46px; margin: 0 0 14px; border-radius: var(--radius-m); border: none;
+      gap: 10px; font-family: inherit; font-size: 15px; font-weight: 600;
+    }
+    .tabbar-scan::after { content: "Scan / enter ID"; }
+    .phone-content {
+      grid-column: 2; grid-row: 1;
+      padding: 56px max(32px, calc((100% - 1200px) / 2)) 40px;
+    }
+    .sync-box { right: 24px; top: 16px; }
+    .alert-stack { left: auto; right: 24px; top: 52px; width: min(520px, calc(100% - 280px)); }
+    .loading-bar { left: 224px; }
+    .boot-screen { grid-column: 1 / -1; }
+    .screen-title { font-size: 28px; }
+
+    /* Lists become grids of cards */
+    .screen-tab-people .lanyard-list,
+    .screen-tab-other .lanyard-list,
+    .screen-other .lanyard-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+    .screen-tab-people #peopleSearch { max-width: 560px; font-size: 16px; }
+    .screen-tab-settings > .card { max-width: 760px; }
+
+    /* Dashboard: stats across the top, panels side by side */
+    .screen-tab-dashboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 16px; }
+    .screen-tab-dashboard > .screen-title { grid-column: 1 / -1; }
+    .screen-tab-dashboard > .lost-panel { grid-column: 1 / -1; }
+    .screen-tab-dashboard .stat-grid { grid-column: 1 / -1; grid-template-columns: repeat(4, 1fr); }
+
+    /* Person: two columns */
+    .person-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+    .person-col-a { position: sticky; top: 0; }
+
+    /* Camera / manual entry: keep the video a sensible size */
+    .screen-camera { max-width: 720px; margin: 0 auto; width: 100%; }
+  }
+
   /* ---------- QR code on a person's full page ---------- */
   .person-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
   .person-qr-box { background: #fff; padding: 10px; border-radius: var(--radius-m); border: 1px solid var(--line); line-height: 0; }
@@ -4169,13 +4252,35 @@
   function renderScreen() {
     var el = document.getElementById("screen");
     var caption = document.getElementById("phoneCaption");
+    // Lets the laptop layout style each screen (e.g. two columns for a person, grids for lists).
+    el.className = "phone-content screen-" + (view.screen === "tab" ? "tab-" + view.activeTab : view.screen);
 
     if (view.screen === "tab" && view.activeTab === "dashboard") {
-      caption.textContent = "A live snapshot of the Sheet. Lost people and check-ins refresh about every half minute.";
+      caption.textContent = "A live snapshot of the Sheet. Lost people and check-ins show up within seconds.";
       var totalCount = state.registrants.length;
       var checkedInCount = state.registrants.filter(function (r) { return r.checkedIn; }).length;
       var pct = totalCount ? Math.round((checkedInCount / totalCount) * 100) : 0;
       var lostList = state.registrants.filter(function (r) { return r.lost; });
+      var pickupsNeeded = state.registrants.filter(function (r) { return r.needsPickup; }).length;
+      var pickupsDone = state.registrants.filter(function (r) { return r.needsPickup && r.pickedUp; }).length;
+      // Checked in per team, so team leaders can see who's still missing.
+      var teams = {};
+      state.registrants.forEach(function (r) {
+        var t = r.team || "No team";
+        if (!teams[t]) teams[t] = { total: 0, inn: 0 };
+        teams[t].total++;
+        if (r.checkedIn) teams[t].inn++;
+      });
+      var teamNames = Object.keys(teams).sort();
+      var teamBreakdown = teamNames.length > 1
+        ? '<div class="card team-breakdown"><div class="task-head" style="margin:0 0 8px"><span>Checked in by team</span><span class="mono">' + teamNames.length + ' teams</span></div>' +
+          teamNames.map(function (t) {
+            var tp = teams[t].total ? Math.round(teams[t].inn / teams[t].total * 100) : 0;
+            return '<div class="team-row"><span class="team-row-name">' + esc(t) + '</span>' +
+              '<div class="capacity-track"><div class="capacity-fill" style="width:' + tp + '%"></div></div>' +
+              '<span class="capacity-label mono">' + teams[t].inn + '/' + teams[t].total + '</span></div>';
+          }).join("") + '</div>'
+        : '';
 
       var lostPanel;
       if (lostList.length) {
@@ -4207,6 +4312,8 @@
         '<div class="stat-grid">' +
           '<div class="stat-tile"><span class="stat-value mono">' + totalCount + '</span><span class="stat-label">Registered</span></div>' +
           '<div class="stat-tile"><span class="stat-value mono">' + checkedInCount + '</span><span class="stat-label">Checked in</span></div>' +
+          '<div class="stat-tile"><span class="stat-value mono">' + (totalCount - checkedInCount) + '</span><span class="stat-label">Still to arrive</span></div>' +
+          '<div class="stat-tile"><span class="stat-value mono">' + pickupsDone + ' / ' + pickupsNeeded + '</span><span class="stat-label">Airport pickups done</span></div>' +
         '</div>' +
         '<div class="card">' +
           '<div class="capacity-row">' +
@@ -4215,6 +4322,7 @@
           '</div>' +
           '<div class="id-print-note" style="margin-top:6px">' + checkedInCount + ' of ' + totalCount + ' registrants checked in so far</div>' +
         '</div>' +
+        teamBreakdown +
         staffPresenceHtml();
       return;
     }
@@ -4772,9 +4880,15 @@
           '<div class="person-qr-label mono">Lanyard QR &middot; ' + esc(r.id) + '</div>' +
         '</div>';
 
+      // Two columns on a laptop (who they are | check-in list); one column on a phone, same order.
       el.innerHTML =
-        '<button class="back-link" data-action="backFromScanned" type="button">&larr; Back</button>' +
-        alreadyWarn + idCard + lostSection + tabs + body + qrCard;
+        '<div class="person-layout">' +
+          '<div class="person-col person-col-a">' +
+            '<button class="back-link" data-action="backFromScanned" type="button">&larr; Back</button>' +
+            alreadyWarn + idCard + lostSection +
+          '</div>' +
+          '<div class="person-col person-col-b">' + tabs + body + qrCard + '</div>' +
+        '</div>';
 
       var qrBox = document.getElementById("personQrBox");
       if (qrBox) qrBox.appendChild(makeQrCanvas(r.id, 320));
