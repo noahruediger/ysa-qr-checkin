@@ -4,6 +4,7 @@
 const http = require('http'); const fs = require('fs'); const path = require('path'); const url = require('url');
 const gas = require('./gas-mock');
 const g = gas.load(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixture.json'), 'utf8')));
+if (!process.env.APPROVALS) g._props.REQUIRE_APPROVAL = 'false';   // APPROVALS=1 to test the approval flow
 const root = path.join(__dirname, '..');
 const port = +process.argv[2] || 8765;
 const types = { '.html': 'text/html', '.js': 'application/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.css': 'text/css' };

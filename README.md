@@ -107,9 +107,19 @@ For people who sign up on the day. In **Other → Walk-ins → Print blank cards
 - **Desk search:** someone without their lanyard can be found by typing their phone number (any format, +61 or 04…) or email on the People tab. Those are looked up in the Sheet, not kept on every phone.
 - **Who did what:** every change is logged on a `Log` tab (time, staff name, phone, action, person), and the Registrants tab gets `Checked In By`, `Lost By`, `Pack Given By`, `Shirt Given By` and `Picked Up By` columns. The names come from what each phone typed under Settings.
 
+## Approving new phones
+
+A new phone can't see or change anything until an Admin approves it. When someone opens the app for the first time they type their name and pick the role they're asking for, then see **Waiting for approval**. The app checks every few seconds and opens by itself once they're approved.
+
+- **Approve or deny:** Admins see a dot on **Settings** and a "waiting for approval" note on the Dashboard. In **Settings → People with access**, pick their role (Admin, Security or Other), then **Approve** or **Deny**.
+- **Change someone's role or take access away:** use the role menu or **Remove** next to their name. A removed phone loses access straight away, and its saved list of people is cleared.
+- **Roles are only requests.** Picking "Admin" when you sign up doesn't make you one; only an Admin can give someone the Admin role, and the last Admin can't be removed.
+- **New Sheet:** the very first phone to sign up on a Sheet with no Admin becomes the Admin automatically. Phones that were already on the Staff tab before approvals were added keep their access.
+- The `Staff` tab has **Status** (Approved / Pending / Denied), **Approved By** and **Approved At** columns. To switch approvals off, add Script Property `REQUIRE_APPROVAL` = `false`.
+
 ## Laptop view
 
-On a laptop or big screen the app fills the window: a sidebar on the left, people as a grid of cards, the person page in two columns, and a dashboard with checked-in-by-team bars. On the **Print** tab the layout options stay open next to a live preview of one A4 page, which redraws as you change sizes, toggles or the selected people. What you see is what prints. Tablets get the phone layout using the whole screen.
+On a laptop or big screen the app fills the window: a sidebar on the left, people as a grid of cards (with a **Filters** button that opens a column on the right: checked in or not, lost, allergy, medical notes, dietary, walk-ins, airport pickup, printed, and team / stake / ward; active filters show as chips you can tap to remove; on a phone the same filters open full-screen), the person page in two columns, and a dashboard with checked-in-by-team bars. On the **Print** tab the layout options stay open next to a live preview of one A4 page, which redraws as you change sizes, toggles or the selected people. What you see is what prints. Tablets get the phone layout using the whole screen.
 
 ## Offline and installing
 

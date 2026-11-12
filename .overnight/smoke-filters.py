@@ -1,0 +1,18 @@
+# SMOKE_EXTRA: People filters (laptop column + phone sheet).
+pg.locator('[data-action="selectTab"][data-tab="people"]').first.click(); pg.wait_for_timeout(300)
+total = pg.locator('.lanyard-list .lookup-item').count()
+pg.locator('[data-action="toggleFilterPanel"]').first.click(); pg.wait_for_timeout(300)
+if not pg.locator('.filter-panel').is_visible(): errors.append(f'{label}: filter panel not visible')
+pg.locator('[data-action="toggleFilterFlag"][data-key="allergy"]').click(); pg.wait_for_timeout(300)
+n_allergy = pg.locator('.lanyard-list .lookup-item').count()
+if not (0 < n_allergy < total): errors.append(f'{label}: allergy filter count {n_allergy} of {total}')
+pg.locator('[data-action="setFilter"][data-key="checkin"][data-value="in"]').click(); pg.wait_for_timeout(300)
+pg.locator('.filter-check input').first.check(); pg.wait_for_timeout(300)
+pg.screenshot(path=f'{out}/{label}-filters.png')
+chips = pg.locator('.filter-chip').count()
+if chips != 3: errors.append(f'{label}: expected 3 chips, got {chips}')
+if label == 'phone':
+    pg.locator('.filter-panel-foot button').click(); pg.wait_for_timeout(300)
+    pg.screenshot(path=f'{out}/{label}-filters-chips.png')
+pg.locator('.filter-chips [data-action="clearFilters"]').click(); pg.wait_for_timeout(300)
+if pg.locator('.lanyard-list .lookup-item').count() != total: errors.append(f'{label}: clear all did not restore list')

@@ -272,6 +272,8 @@
   }
 
   /* ---------- First-load screen (loading everyone from the Sheet) ---------- */
+  .boot-screen.is-wait .boot-count, .boot-screen.is-wait .boot-bar { display: none; }
+  .boot-screen.is-wait .boot-error { color: var(--ink); background: var(--surface); border: 1px solid var(--line); text-align: left; line-height: 1.5; }
   .boot-screen {
     position: absolute; inset: 0; z-index: 20;
     background: var(--surface);
@@ -292,6 +294,67 @@
   .boot-spinner { display: inline-block; box-sizing: border-box; width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid rgba(127,127,127,0.28); border-top-color: var(--accent); animation: syncSpin 0.75s linear infinite; flex: none; }
   .boot-error { color: var(--critical); font-size: 13px; max-width: 300px; overflow-wrap: anywhere; }
   .boot-actions { display: flex; gap: 10px; }
+
+  /* ---------- People filters ---------- */
+  .people-layout { display: flex; flex-direction: column; gap: 14px; }
+  .people-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .people-toolbar { display: flex; gap: 8px; align-items: stretch; width: 100%; max-width: 720px; }
+  .people-toolbar #peopleSearch { flex: 1 1 auto !important; width: auto; min-width: 0; max-width: none !important; }
+  .filter-btn { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+  .filter-btn.is-on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-tint); }
+  .filter-btn-count { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; font-weight: 700; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .filter-chip { border: 1px solid var(--accent); background: var(--accent-tint); color: var(--accent-ink); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .filter-chip:hover { background: var(--surface); }
+  .people-count { font-size: 12.5px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .filter-panel {
+    position: fixed; inset: 0; z-index: 15; background: var(--surface); display: flex; flex-direction: column;
+  }
+  .filter-panel-head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 10px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 15px; }
+  .filter-panel-head > span { flex: 1; }
+  .filter-close { border: 0; background: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--ink-soft); padding: 0 4px; }
+  .filter-panel-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .filter-panel-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .filter-group { display: flex; flex-direction: column; gap: 8px; }
+  .filter-group-head { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
+  .filter-group-head .filter-count { text-transform: none; letter-spacing: 0; }
+  .filter-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-seg-btn, .filter-flag {
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 999px;
+    padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .filter-seg-btn.is-on, .filter-flag.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filter-flag.is-on .filter-count { color: rgba(255,255,255,0.85); }
+  .filter-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-count { font-size: 11.5px; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+  .filter-list { display: flex; flex-direction: column; gap: 2px; }
+  .filter-list.is-long { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-m); padding: 4px; }
+  .filter-check { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 6px; font-size: 13.5px; cursor: pointer; }
+  .filter-check:hover { background: var(--surface-2); }
+  .filter-check input { width: 16px; height: 16px; accent-color: var(--accent); }
+  @media (min-width: 980px) {
+    .people-layout.has-filters { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+    .filter-panel {
+      position: sticky; top: 0; inset: auto; z-index: auto; max-height: calc(100vh - 96px);
+      border: 1px solid var(--line); border-radius: var(--radius-l, 14px); overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .filter-panel-foot { display: none; }
+    .has-filters .lanyard-list { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important; }
+  }
+
+  /* ---------- Staff approvals ---------- */
+  .staff-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+  .staff-role-mini { width: auto; padding: 4px 8px; font-size: 12.5px; height: 30px; }
+  .approval-note {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 12px; border-radius: var(--radius-m); border: 1.5px solid var(--warning);
+    background: var(--warning-tint); color: var(--warning); font: inherit; font-size: 13.5px; cursor: pointer; text-align: left;
+  }
+  .tabbar-btn.has-badge { position: relative; }
+  .tabbar-btn.has-badge::after { content: ""; position: absolute; top: 4px; right: calc(50% - 16px); width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 2px var(--surface); }
+  @media (min-width: 980px) { .tabbar-btn.has-badge::after { top: 50%; right: 12px; transform: translateY(-50%); } }
+  .approval-note span { color: var(--ink-soft); font-size: 12.5px; }
 
   /* ---------- "Already checked in" warning on a scan ---------- */
   .already-warn {
@@ -1310,7 +1373,8 @@
         <div class="boot-error" id="bootError" hidden></div>
         <div class="boot-actions" id="bootActions" hidden>
           <button class="btn" data-action="bootSettings" type="button">Settings</button>
-          <button class="btn btn-primary" data-action="bootRetry" type="button">Try again</button>
+          <button class="btn" id="bootNameBtn" data-action="bootChangeName" type="button" hidden>Change name</button>
+          <button class="btn btn-primary" id="bootRetryBtn" data-action="bootRetry" type="button">Try again</button>
         </div>
       </div>
       <nav class="phone-tabbar" aria-label="App navigation">
@@ -1457,7 +1521,8 @@
 
   // "https://.../exec?" (plus "key=...&" when this phone has an access code), ready for "action=...".
   function apiBase() {
-    return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + (ACCESS_KEY ? "key=" + encodeURIComponent(ACCESS_KEY) + "&" : "");
+    return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + (ACCESS_KEY ? "key=" + encodeURIComponent(ACCESS_KEY) + "&" : "") +
+      "deviceId=" + encodeURIComponent(deviceId) + "&";   // approvals: the Sheet checks this phone is allowed in
   }
   // Builds a GET URL for the Sheet script, adding the access code if this phone has one (Settings).
   function apiUrl(params) {
@@ -1466,6 +1531,7 @@
       if (params[k] != null && params[k] !== "") q.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
     });
     if (ACCESS_KEY) q.push("key=" + encodeURIComponent(ACCESS_KEY));
+    q.push("deviceId=" + encodeURIComponent(deviceId));
     return BACKEND_URL + (BACKEND_URL.indexOf("?") === -1 ? "?" : "&") + q.join("&");
   }
 
@@ -1540,8 +1606,11 @@
   // works straight from a locally-hosted page with no server-side CORS setup
   // (Apps Script web apps can't answer a CORS preflight OPTIONS request).
   function rawPost(payload) {
-    var body = payload;
-    if (ACCESS_KEY) { body = {}; Object.keys(payload).forEach(function (k) { body[k] = payload[k]; }); body.key = ACCESS_KEY; }
+    // Every write carries this phone's ID (approvals check it) and the access code if there is one.
+    var body = {};
+    Object.keys(payload).forEach(function (k) { body[k] = payload[k]; });
+    if (body.deviceId == null && deviceId) body.deviceId = deviceId;
+    if (ACCESS_KEY) body.key = ACCESS_KEY;
     return trackedFetch(BACKEND_URL, { method: "POST", body: JSON.stringify(body) });
   }
 
@@ -1641,6 +1710,10 @@
   function friendlyErr(message) {
     var s = String(message || "something went wrong").replace(/^Error:\s*/i, "").trim();
     if (/failed to fetch|networkerror|load failed|network request failed|offline/i.test(s)) return "the phone can’t reach the Sheet.";
+    if (s === "pending") return "an Admin hasn’t approved this phone yet.";
+    if (s === "denied") return "an Admin has removed this phone’s access.";
+    if (s === "unregistered") return "this phone needs to sign up first (your name and role).";
+    if (s === "last admin") return "there has to be at least one Admin, so make someone else Admin first.";
     if (s === "locked") return "this Sheet needs an access code. Enter it in Settings, then tap Connect.";
     if (s === "busy") return "the Sheet is busy. It will retry.";
     if (s === "admin only") return "only an Admin phone can do that (Settings → This phone → Change).";
@@ -2102,6 +2175,9 @@
   var STAFF_ROLES = ["Admin", "Security", "Other"];
   var staffRole = "";
   try { staffRole = localStorage.getItem("qrCheckinStaffRole") || ""; } catch (e) { staffRole = ""; }
+  var myAccess = null;         // this phone, as the Sheet sees it: { status: Approved|Pending|Denied|Unregistered, role, name }
+  var accessWaiting = false;   // showing the "waiting for approval" screen
+  var accessPollTimer = null;
   var staffList = null;        // People with access, as last loaded from the Sheet
   var staffStatus = "";        // loading / error note for that list
 
@@ -2114,6 +2190,91 @@
     var os = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "Other";
     var br = /CriOS|Chrome\//.test(ua) && !/Edg\//.test(ua) ? "Chrome" : /Edg\//.test(ua) ? "Edge" : /FxiOS|Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Browser";
     return os + " · " + br;
+  }
+
+  // ---------- approvals ----------
+  // A new phone signs up (name + the role it's asking for), then waits on this screen until an
+  // Admin approves it in Settings → People with access. It checks every 8 s and opens by itself.
+  function isAccessError(e) { return e === "pending" || e === "denied" || e === "unregistered"; }
+  function isAdminHere() { return !!(myAccess && myAccess.status === "Approved" && myAccess.role === "Admin"); }
+
+  function handleAccessBlocked(err) {
+    backendBusy = false;
+    state.registrants = [];   // nobody is shown until this phone is let in
+    if (err === "denied") {
+      // Access removed: don't keep everyone's details on this phone either.
+      try { localStorage.removeItem(PEOPLE_CACHE_STORE); } catch (e) { /* fine */ }
+    }
+    myAccess = { status: err === "denied" ? "Denied" : err === "pending" ? "Pending" : "Unregistered", role: staffRole, name: staffName };
+    if (err === "unregistered") {
+      if (!staffName || !staffRole) {
+        accessWaiting = true;
+        hideBoot();
+        view.nameModal = { name: staffName, role: staffRole, error: "", saving: false, first: true };
+        render(); focusNameInput();
+        return;
+      }
+      registerStaff(true);   // named already (e.g. a new Sheet): sign up again, then wait
+    }
+    showAccessWait();
+  }
+
+  function showAccessWait() {
+    accessWaiting = true;
+    stopCamera();
+    var denied = myAccess && myAccess.status === "Denied";
+    if (boot.raf) cancelAnimationFrame(boot.raf); boot.raf = null;
+    var scr = bootEl("bootScreen");
+    scr.hidden = false;
+    scr.classList.add("is-wait");
+    bootEl("bootStatus").hidden = !(!denied);
+    bootEl("bootStatusText").textContent = "Checking every few seconds…";
+    bootEl("bootError").hidden = false;
+    bootEl("bootError").innerHTML = denied
+      ? '<strong>This phone doesn’t have access.</strong><br>An Admin has removed it. If that’s a mistake, ask an Admin to restore you in Settings → People with access.'
+      : '<strong>Waiting for approval</strong><br>Ask Noah or another Admin to open <em>Settings → People with access</em> and approve <strong>' + esc(staffName || "this phone") + '</strong>' +
+        (staffRole ? ' (asked for ' + esc(staffRole) + ')' : '') + '. This opens by itself once you’re approved.';
+    bootEl("bootActions").hidden = false;
+    bootEl("bootRetryBtn").textContent = "Check now";
+    bootEl("bootNameBtn").hidden = false;
+    if (accessPollTimer) clearInterval(accessPollTimer);
+    accessPollTimer = setInterval(checkAccessNow, 8000);
+  }
+
+  function endAccessWait() {
+    accessWaiting = false;
+    if (accessPollTimer) { clearInterval(accessPollTimer); accessPollTimer = null; }
+    var scr = bootEl("bootScreen");
+    scr.classList.remove("is-wait");
+    bootEl("bootRetryBtn").textContent = "Try again";
+    bootEl("bootNameBtn").hidden = true;
+  }
+
+  function checkAccessNow() {
+    if (!BACKEND_URL) return;
+    trackedFetch(apiUrl({ action: "staffStatus" })).then(function (d) {
+      if (!d || !d.ok || !d.me) return;
+      myAccess = d.me;
+      if (d.me.status === "Approved") { endAccessWait(); loadFromBackend(); }
+      else if (accessWaiting) showAccessWait();
+    }).catch(function () { /* try again on the next tick */ });
+  }
+
+  function setStaffAccess(target, status, role) {
+    var payload = { action: "setStaffAccess", target: target };
+    if (status) payload.status = status;
+    if (role) payload.role = role;
+    staffStatus = "Saving…";
+    render();
+    rawPost(payload).then(function (res) {
+      if (res && res.ok) { if (res.staff) setStaffList(res.staff); staffStatus = ""; }
+      else staffStatus = "Couldn’t change that — " + friendlyErr(res && res.error);
+      render();
+    }).catch(function (err) { staffStatus = "Couldn’t reach the Sheet (" + err + ")."; render(); });
+  }
+
+  function pendingStaff() {
+    return (staffList || []).filter(function (s) { return s.status === "Pending"; });
   }
 
   function afterConnectStaff() {
@@ -2134,9 +2295,14 @@
   function registerStaff(showErrors) {
     if (!BACKEND_URL || !staffName) return Promise.resolve();
     var payload = { action: "registerStaff", deviceId: deviceId, name: staffName, role: staffRole, device: deviceLabel() };
-    return (showErrors ? apiPost(payload) : rawPost(payload))
+    return rawPost(payload)
       .then(function (res) {
-        if (res && res.ok) { if (res.staff) setStaffList(res.staff); staffStatus = ""; }
+        if (res && res.ok && res.me) {
+          myAccess = res.me;
+          if (res.me.status === "Approved") { if (accessWaiting) { endAccessWait(); loadFromBackend(); } }
+          else { showAccessWait(); }
+        }
+        if (res && res.ok) { if (res.staff && res.staff.length) setStaffList(res.staff); staffStatus = ""; }
         else staffStatus = "The Sheet script needs the staff update to keep the access list (" + (res && res.error) + ").";
         if (staffScreenOpen()) render();
       })
@@ -2160,9 +2326,10 @@
     if (!force && document.hidden) return;
     heartbeatBusy = true;
     lastHeartbeat = Date.now();
-    var url = apiBase() + "action=heartbeat&deviceId=" + encodeURIComponent(deviceId);
+    var url = apiBase() + "action=heartbeat";
     trackedFetch(url).then(function (d) {
       heartbeatBusy = false;
+      if (d && d.ok === false && isAccessError(d.error)) { handleAccessBlocked(d.error); return; }
       if (d && d.ok) {
         presenceSupported = true;
         if (d.staff) setStaffList(d.staff);
@@ -2340,6 +2507,7 @@
     showBoot();
     loadAllPeople(bootProgress).then(function (data) {
       backendBusy = false;
+      if (data && data.ok === false && isAccessError(data.error)) { handleAccessBlocked(data.error); return; }
       if (!data || data.ok === false) {
         var why = data && data.error ? friendlyErr(data.error) : "check the URL";
         setConnStatus("Couldn't load — " + why, false);
@@ -2357,6 +2525,7 @@
       setConnStatus("Connected — live off the test Sheet (" + state.registrants.length + " registrants)", true);
       render();
       bootProgress(data.registrants.length, data.registrants.length);
+      endAccessWait();
       setTimeout(hideBoot, 450);   // let the bar reach the end before it disappears
       syncPendingWalkins();
       afterConnectStaff();
@@ -2562,6 +2731,8 @@
       pinError: false,
       staffUnlocked: true,
       peopleSearch: "",
+      peopleFilters: emptyPeopleFilters(),
+      filterOpen: false,       // People tab: filter column (laptop) / sheet (phone) open
       printSearch: "",
       selected: new Set(),
       printToast: "",
@@ -2928,6 +3099,107 @@
       remoteSearch = { term: t, status: "Couldn’t reach the Sheet to search phone numbers and emails.", results: [] };
       if (view.screen === "tab" && view.activeTab === "people") setPeopleSearch(view.peopleSearch, true);
     });
+  }
+
+  // ---------- People filters ----------
+  // Single-choice groups ("any" = no filter), yes/no flags, and pick-lists (any of the ticked ones).
+  var FILTER_CHOICES = {
+    checkin: { label: "Check-in", opts: [["any", "All"], ["in", "Checked in"], ["out", "Not yet"]] },
+    pickup: { label: "Airport pickup", opts: [["any", "All"], ["needs", "Needs pickup"], ["waiting", "Still to pick up"], ["done", "Picked up"]] },
+    printed: { label: "Lanyard", opts: [["any", "All"], ["yes", "Printed"], ["no", "Not printed"]] }
+  };
+  var FILTER_FLAGS = [["lost", "Lost"], ["allergy", "Allergy"], ["medical", "Medical notes"], ["dietary", "Dietary"], ["walkin", "Walk-ins"]];
+  var FILTER_LISTS = [["teams", "Team", "team"], ["stakes", "Stake", "stake"], ["wards", "Ward", "ward"]];
+  function emptyPeopleFilters() {
+    return { checkin: "any", pickup: "any", printed: "any", lost: false, allergy: false, medical: false, dietary: false, walkin: false, teams: [], stakes: [], wards: [] };
+  }
+  function activeFilterCount(f) {
+    var n = 0;
+    Object.keys(FILTER_CHOICES).forEach(function (k) { if (f[k] !== "any") n++; });
+    FILTER_FLAGS.forEach(function (x) { if (f[x[0]]) n++; });
+    FILTER_LISTS.forEach(function (x) { n += f[x[0]].length; });
+    return n;
+  }
+  function matchesPeopleFilters(r, f) {
+    if (f.checkin === "in" && !r.checkedIn) return false;
+    if (f.checkin === "out" && r.checkedIn) return false;
+    if (f.pickup === "needs" && !r.needsPickup) return false;
+    if (f.pickup === "waiting" && !(r.needsPickup && !r.pickedUp)) return false;
+    if (f.pickup === "done" && !r.pickedUp) return false;
+    if (f.printed === "yes" && !r.qrPrinted) return false;
+    if (f.printed === "no" && r.qrPrinted) return false;
+    if (f.lost && !r.lost) return false;
+    if (f.allergy && !r.allergy) return false;
+    if (f.medical && !r.medical) return false;
+    if (f.dietary && !r.dietary) return false;
+    if (f.walkin && !r.walkin) return false;
+    for (var i = 0; i < FILTER_LISTS.length; i++) {
+      var key = FILTER_LISTS[i][0], field = FILTER_LISTS[i][2];
+      if (f[key].length && f[key].indexOf(r[field] || "") === -1) return false;
+    }
+    return true;
+  }
+  function filterChipsHtml(f) {
+    var chips = [];
+    Object.keys(FILTER_CHOICES).forEach(function (k) {
+      if (f[k] === "any") return;
+      var opt = FILTER_CHOICES[k].opts.filter(function (o) { return o[0] === f[k]; })[0];
+      chips.push([k, "", opt ? opt[1] : f[k]]);
+    });
+    FILTER_FLAGS.forEach(function (x) { if (f[x[0]]) chips.push([x[0], "", x[1]]); });
+    FILTER_LISTS.forEach(function (x) { f[x[0]].forEach(function (v) { chips.push([x[0], v, v || "(none)"]); }); });
+    if (!chips.length) return "";
+    return '<div class="filter-chips">' + chips.map(function (c) {
+      return '<button class="filter-chip" data-action="removeFilter" data-key="' + esc(c[0]) + '" data-value="' + esc(c[1]) + '" type="button">' + esc(c[2]) + ' <span aria-hidden="true">&times;</span><span class="sr-only"> remove filter</span></button>';
+    }).join("") + '<button class="back-link" data-action="clearFilters" type="button">Clear all</button></div>';
+  }
+  // pool: people matching the search (before filters), so the counts next to each option are useful.
+  function filterPanelHtml(f, pool, shownCount) {
+    var seg = function (key) {
+      var c = FILTER_CHOICES[key];
+      return '<div class="filter-group"><div class="filter-group-head">' + c.label + '</div><div class="filter-seg">' +
+        c.opts.map(function (o) {
+          return '<button class="filter-seg-btn' + (f[key] === o[0] ? ' is-on' : '') + '" data-action="setFilter" data-key="' + key + '" data-value="' + o[0] + '" type="button" aria-pressed="' + (f[key] === o[0]) + '">' + o[1] + '</button>';
+        }).join("") + '</div></div>';
+    };
+    var flagCount = function (k) { return pool.filter(function (r) { return !!r[k]; }).length; };
+    var flags = '<div class="filter-group"><div class="filter-group-head">Show only</div><div class="filter-flags">' +
+      FILTER_FLAGS.map(function (x) {
+        return '<button class="filter-flag' + (f[x[0]] ? ' is-on' : '') + '" data-action="toggleFilterFlag" data-key="' + x[0] + '" type="button" aria-pressed="' + !!f[x[0]] + '">' +
+          esc(x[1]) + ' <span class="filter-count">' + flagCount(x[0]) + '</span></button>';
+      }).join("") + '</div></div>';
+    var lists = FILTER_LISTS.map(function (x) {
+      var key = x[0], field = x[2];
+      var counts = {};
+      pool.forEach(function (r) { var v = r[field] || ""; counts[v] = (counts[v] || 0) + 1; });
+      var values = Object.keys(counts).sort(function (a, b) { return (a === "") - (b === "") || a.localeCompare(b); });
+      if (!values.length) return "";
+      return '<div class="filter-group"><div class="filter-group-head">' + x[1] + (f[key].length ? ' <span class="filter-count">' + f[key].length + ' ticked</span>' : '') + '</div>' +
+        '<div class="filter-list' + (values.length > 8 ? ' is-long' : '') + '">' +
+        values.map(function (v) {
+          var on = f[key].indexOf(v) !== -1;
+          return '<label class="filter-check"><input type="checkbox" data-filter-list="' + key + '" value="' + esc(v) + '"' + (on ? ' checked' : '') + '>' +
+            '<span>' + esc(v || "(none)") + '</span><span class="filter-count">' + counts[v] + '</span></label>';
+        }).join("") + '</div></div>';
+    }).join("");
+    var n = activeFilterCount(f);
+    return '<aside class="filter-panel" aria-label="Filters">' +
+      '<div class="filter-panel-head"><span>Filters' + (n ? ' <span class="pill pill-sm pill-neutral">' + n + '</span>' : '') + '</span>' +
+        (n ? '<button class="back-link" data-action="clearFilters" type="button">Clear all</button>' : '') +
+        '<button class="filter-close" data-action="toggleFilterPanel" type="button" aria-label="Close filters">&times;</button></div>' +
+      '<div class="filter-panel-body">' + seg("checkin") + flags + seg("pickup") + seg("printed") + lists + '</div>' +
+      '<div class="filter-panel-foot"><button class="btn btn-primary btn-block" data-action="toggleFilterPanel" type="button">Show ' + fmtNum(shownCount) + ' ' + (shownCount === 1 ? 'person' : 'people') + '</button></div>' +
+    '</aside>';
+  }
+  function keepPeopleScroll(fn) {
+    var sc = document.getElementById("screen");
+    var top = sc ? sc.scrollTop : 0;
+    var panel = document.querySelector(".filter-panel-body");
+    var ptop = panel ? panel.scrollTop : 0;
+    fn();
+    render();
+    sc = document.getElementById("screen"); if (sc) sc.scrollTop = top;
+    panel = document.querySelector(".filter-panel-body"); if (panel) panel.scrollTop = ptop;
   }
 
   function setPeopleSearch(term, fromRemote) {
@@ -3537,6 +3809,7 @@
     var url = apiBase() + "action=list";
     refreshPromise = trackedFetch(url).then(function (data) {
       refreshPromise = null;
+      if (data && data.ok === false && isAccessError(data.error)) { handleAccessBlocked(data.error); return data; }
       if (!data || data.ok === false || !data.registrants) return data;
       if (typeof data.rev === "number") liveRev = data.rev;
       var before = peopleSig(state.registrants);
@@ -3571,13 +3844,14 @@
   var alertedLost = {};        // id + at that already beeped on this phone
 
   function pollRev() {
-    if (!BACKEND_URL || document.hidden || revBusy || revSupported === false) return;
+    if (!BACKEND_URL || document.hidden || revBusy || revSupported === false || accessWaiting) return;
     revBusy = true;
     lastRevPoll = Date.now();
     trackedFetch(apiUrl({ action: "rev" })).then(function (d) {
       revBusy = false;
       if (!d) return;
       if (d.ok === false) {
+        if (isAccessError(d.error)) { handleAccessBlocked(d.error); return; }
         if (/unknown action/i.test(String(d.error || ""))) { revSupported = false; PEOPLE_REFRESH_MS = PEOPLE_REFRESH_LEGACY_MS; }
         return;
       }
@@ -4189,8 +4463,11 @@
         '<div class="screen-sub" style="margin:0">' + esc(staffStatus || "Loading…") + '</div></div>';
     }
     var byNameSort = function (a, b) { return String(a.name).localeCompare(String(b.name)); };
-    var online = staffList.filter(isStaffOnline).sort(function (a, b) { return (staffAgoSec(a) - staffAgoSec(b)) || byNameSort(a, b); });
-    var offline = staffList.filter(function (s) { return !isStaffOnline(s); }).sort(function (a, b) {
+    var approvedStaff = staffList.filter(function (x) { return !x.status || x.status === "Approved"; });
+    var waiting = isAdminHere() ? pendingStaff().length : 0;
+    var waitNote = waiting ? '<button class="approval-note" data-action="reviewApprovals" type="button"><strong>' + waiting + ' waiting for approval</strong><span>Review in Settings &rarr;</span></button>' : '';
+    var online = approvedStaff.filter(isStaffOnline).sort(function (a, b) { return (staffAgoSec(a) - staffAgoSec(b)) || byNameSort(a, b); });
+    var offline = approvedStaff.filter(function (s) { return !isStaffOnline(s); }).sort(function (a, b) {
       var x = staffAgoSec(a), y = staffAgoSec(b);
       if (x === null && y === null) return byNameSort(a, b);
       if (x === null) return 1;
@@ -4210,10 +4487,10 @@
         '</div>' +
       '</div>';
     };
-    return '<div class="card staff-card">' +
+    return waitNote + '<div class="card staff-card">' +
       '<div class="staff-head"><span>Staff online</span>' +
         '<span class="pill pill-sm ' + (online.length ? 'pill-success' : 'pill-neutral') + '">' + online.length + ' online</span>' +
-        '<span class="staff-total">' + staffList.length + ' with access</span>' +
+        '<span class="staff-total">' + approvedStaff.length + ' with access</span>' +
       '</div>' +
       (online.length ? '<div class="staff-list">' + online.map(function (s) { return row(s, true); }).join("") + '</div>'
                      : '<div class="screen-sub" style="margin:0">No one has had the app open in the last 5 minutes.</div>') +
@@ -4496,6 +4773,10 @@
           r.stake.toLowerCase().indexOf(pterm) !== -1) return true;
         return !!r.details && r.details.some(function (kv) { return String(kv[1]).toLowerCase().indexOf(pterm) !== -1; });
       });
+      var pf = view.peopleFilters;
+      var searchPool = presults;
+      var nFilters = activeFilterCount(pf);
+      if (nFilters) presults = presults.filter(function (r) { return matchesPeopleFilters(r, pf); });
       var personRow = function (r, note) {
         var lostBadge = (r.walkin ? ' <span class="pill pill-walkin pill-sm">Walk-in</span>' : '') +
           (r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '') +
@@ -4515,7 +4796,7 @@
       var prows = presults.length
         ? shownPeople.map(function (r) { return personRow(r); }).join("") +
           (presults.length > PEOPLE_CAP ? '<div class="empty-note">Showing ' + PEOPLE_CAP + ' of ' + presults.length + ' &mdash; type a name, ward or phone number to narrow it down.</div>' : '')
-        : '<div class="empty-note">No one on this phone matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;.</div>';
+        : '<div class="empty-note">' + (nFilters && !pterm ? 'No one matches these filters.' : 'No one on this phone matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;' + (nFilters ? ' with these filters' : '') + '.') + '</div>';
 
       // Phone / email matches come from the Sheet (those aren't kept on every phone).
       var rs = remoteSearch;
@@ -4538,10 +4819,23 @@
       if (!presults.length && remoteHtml && remoteHtml.indexOf("Matched in the Sheet") !== -1) prows = "";
 
       el.innerHTML =
-        '<h2 class="screen-title">People</h2>' +
-        '<input class="text-input" id="peopleSearch" type="search" inputmode="search" placeholder="Name, ward, stake, phone or email" value="' + esc(view.peopleSearch) + '">' +
-        remoteHtml +
-        '<div class="lanyard-list">' + prows + '</div>';
+        '<div class="people-layout' + (view.filterOpen ? ' has-filters' : '') + '">' +
+          '<div class="people-main">' +
+            '<h2 class="screen-title">People</h2>' +
+            '<div class="people-toolbar">' +
+              '<input class="text-input" id="peopleSearch" type="search" inputmode="search" placeholder="Name, ward, stake, phone or email" value="' + esc(view.peopleSearch) + '">' +
+              '<button class="btn filter-btn' + (view.filterOpen || nFilters ? ' is-on' : '') + '" data-action="toggleFilterPanel" type="button" aria-expanded="' + !!view.filterOpen + '">' +
+                '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18"/><path d="M7 12h10"/><path d="M10 19h4"/></svg>' +
+                'Filters' + (nFilters ? ' <span class="filter-btn-count">' + nFilters + '</span>' : '') +
+              '</button>' +
+            '</div>' +
+            filterChipsHtml(pf) +
+            ((pterm || nFilters) ? '<div class="people-count">Showing ' + fmtNum(presults.length) + ' of ' + fmtNum(state.registrants.length) + '</div>' : '') +
+            remoteHtml +
+            '<div class="lanyard-list">' + prows + '</div>' +
+          '</div>' +
+          (view.filterOpen ? filterPanelHtml(pf, searchPool, presults.length) : '') +
+        '</div>';
 
       var peopleInput = document.getElementById("peopleSearch");
       if (peopleInput) {
@@ -4639,33 +4933,62 @@
           '</div>' +
         '</div>' +
         (function () {
-          var meLine = '<div class="staff-me"><span>This phone: <strong>' + (staffName ? esc(staffName) : 'no name yet') + '</strong>' + (staffRole ? ' &middot; ' + esc(staffRole) : '') + '</span>' +
+          var myRole = myAccess && myAccess.status === "Approved" && myAccess.role ? myAccess.role : staffRole;
+          var meLine = '<div class="staff-me"><span>This phone: <strong>' + (staffName ? esc(staffName) : 'no name yet') + '</strong>' + (myRole ? ' &middot; ' + esc(myRole) : '') + '</span>' +
             '<button class="back-link" data-action="changeStaffName" type="button">' + (staffName ? 'Change' : 'Add name') + '</button></div>';
           if (!BACKEND_URL) {
             return '<div class="card staff-card"><div class="staff-head"><span>People with access</span></div>' + meLine +
               '<div class="screen-sub" style="margin:0">Connect to a Sheet to see everyone who’s using it.</div></div>';
           }
-          var list = (staffList || []).slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
-          var rows = list.map(function (s) {
-            var me = s.deviceId === deviceId;
-            return '<div class="staff-row">' +
-              avatarHtml({ name: s.name, photo: null }) +
+          var admin = isAdminHere();
+          var order = { Pending: 0, Approved: 1, Denied: 2 };
+          var list = (staffList || []).slice().sort(function (a, b) {
+            return ((order[a.status] != null ? order[a.status] : 1) - (order[b.status] != null ? order[b.status] : 1)) || String(a.name).localeCompare(String(b.name));
+          });
+          var roleSelect = function (sv, id) {
+            return '<select class="text-input staff-role-mini" id="roleFor-' + esc(id) + '" data-staff-role="' + esc(id) + '" aria-label="Role for ' + esc(sv.name) + '">' +
+              STAFF_ROLES.map(function (r) { return '<option value="' + r + '"' + (sv.role === r ? ' selected' : '') + '>' + r + '</option>'; }).join("") + '</select>';
+          };
+          var pendingCount = 0;
+          var rows = list.map(function (sv) {
+            var me = sv.deviceId === deviceId;
+            var status = sv.status || "Approved";
+            if (status === "Pending") pendingCount++;
+            var statusPill = status === "Pending" ? ' <span class="pill pill-warning pill-sm">Waiting for approval</span>'
+              : status === "Denied" ? ' <span class="pill pill-critical pill-sm">No access</span>' : '';
+            var controls = "";
+            if (admin && !me) {
+              if (status === "Pending") controls = '<div class="staff-controls">' + roleSelect(sv, sv.deviceId) +
+                '<button class="btn btn-sm btn-yes" data-action="approveStaff" data-id="' + esc(sv.deviceId) + '" type="button">Approve</button>' +
+                '<button class="btn btn-sm" data-action="denyStaff" data-id="' + esc(sv.deviceId) + '" type="button">Deny</button></div>';
+              else if (status === "Approved") controls = '<div class="staff-controls">' + roleSelect(sv, sv.deviceId) +
+                '<button class="btn btn-sm" data-action="denyStaff" data-id="' + esc(sv.deviceId) + '" type="button">Remove</button></div>';
+              else controls = '<div class="staff-controls"><button class="btn btn-sm" data-action="approveStaff" data-id="' + esc(sv.deviceId) + '" type="button">Restore</button></div>';
+            }
+            return '<div class="staff-row' + (status === "Denied" ? ' is-away' : '') + '">' +
+              avatarHtml({ name: sv.name, photo: null }) +
               '<div class="staff-text">' +
-                '<span class="staff-name">' + esc(s.name || "(no name)") + (s.role ? ' <span class="pill pill-sm ' + roleClass(s.role) + '">' + esc(s.role) + '</span>' : '') +
-                  (me ? ' <span class="pill pill-walkin pill-sm">This phone</span>' : '') + '</span>' +
-                '<span class="staff-meta">' + (s.device ? esc(s.device) + ' &middot; ' : '') + 'last seen ' + esc(s.lastSeen || s.firstConnected || '') + '</span>' +
+                '<span class="staff-name">' + esc(sv.name || "(no name)") + (sv.role ? ' <span class="pill pill-sm ' + roleClass(sv.role) + '">' + esc(sv.role) + (status === "Pending" ? '?' : '') + '</span>' : '') +
+                  statusPill + (me ? ' <span class="pill pill-walkin pill-sm">This phone</span>' : '') + '</span>' +
+                '<span class="staff-meta">' + (sv.device ? esc(sv.device) + ' &middot; ' : '') + (status === "Pending" ? 'signed up ' + esc(sv.firstConnected || '') : 'last seen ' + esc(sv.lastSeen || sv.firstConnected || '')) +
+                  (sv.approvedBy && status !== "Pending" ? ' &middot; ' + esc(status === "Approved" ? 'approved by ' + sv.approvedBy : sv.approvedBy) : '') + '</span>' +
+                controls +
               '</div>' +
             '</div>';
           }).join("");
           return '<div class="card staff-card">' +
             '<div class="staff-head"><span>People with access</span>' +
-              (staffList ? '<span class="pill pill-neutral pill-sm">' + list.length + '</span>' : '') +
+              (staffList ? '<span class="pill pill-neutral pill-sm">' + list.filter(function (x) { return (x.status || "Approved") === "Approved"; }).length + '</span>' : '') +
+              (pendingCount ? '<span class="pill pill-warning pill-sm">' + pendingCount + ' waiting</span>' : '') +
               '<button class="back-link" data-action="refreshStaff" type="button">Refresh</button>' +
             '</div>' +
             meLine +
             (staffStatus ? '<div class="screen-sub" style="margin:0">' + esc(staffStatus) + '</div>' : '') +
             (rows ? '<div class="staff-list">' + rows + '</div>' : (staffList ? '<div class="screen-sub" style="margin:0">No one has connected yet.</div>' : '')) +
-            '<div class="screen-sub" style="margin:0;font-size:11px">Phones that have connected to this Sheet, from the Staff tab. Anyone with the setup link can still connect, so keep it private.</div>' +
+            '<div class="screen-sub" style="margin:0;font-size:11px">' +
+              (admin ? 'New phones can’t see anyone until you approve them. Pick their role, then Approve. Remove takes access away straight away (their saved list is cleared next time they connect).'
+                     : 'New phones wait here until an Admin approves them. Only Admins can approve people or change roles.') +
+            '</div>' +
           '</div>';
         })() +
         '<div class="card">' +
@@ -4996,6 +5319,7 @@
     var scanBtn = document.getElementById("tabScanBtn");
     var lock = document.getElementById("tabPrintLock");
     if (dashboardBtn) dashboardBtn.classList.toggle("active", view.activeTab === "dashboard");
+    if (settingsBtn) settingsBtn.classList.toggle("has-badge", isAdminHere() && pendingStaff().length > 0);
     if (printBtn) printBtn.classList.toggle("active", view.activeTab === "print");
     if (peopleBtn) peopleBtn.classList.toggle("active", view.activeTab === "people");
     if (otherBtn) otherBtn.classList.toggle("active", view.activeTab === "other");
@@ -5043,12 +5367,12 @@
         '<div class="modal problem-modal" role="dialog" aria-modal="true" aria-label="Your name">' +
           '<h3 class="modal-title">' + (nmod.first ? 'Welcome! Who are you?' : 'Change your name or role') + '</h3>' +
           '<div class="modal-sub" style="font-size:13px;text-align:center">' +
-            (nmod.first ? 'You’re connected to the Sheet. Your name and role go on the staff access list so the team knows who’s using this phone.'
-                        : 'This updates your name and role on the staff access list.') +
+            (nmod.first ? 'Your name and role go on the staff access list. An Admin approves new phones before they can see anyone.'
+                        : (myAccess && myAccess.status === "Approved" ? 'This updates your name on the staff access list. Only an Admin can change your role.' : 'This updates your name and role on the staff access list.')) +
           '</div>' +
           '<input class="text-input" id="staffNameInput" type="text" maxlength="60" autocomplete="name" autocapitalize="words" placeholder="Your full name" value="' + esc(nmod.name) + '">' +
           '<select class="text-input staff-role-select" id="staffRoleSelect" aria-label="Your role">' +
-            '<option value=""' + (nmod.role ? '' : ' selected') + ' disabled>Who are you?</option>' +
+            '<option value=""' + (nmod.role ? '' : ' selected') + ' disabled>Your role (an Admin confirms it)</option>' +
             STAFF_ROLES.map(function (r) { return '<option value="' + r + '"' + (nmod.role === r ? ' selected' : '') + '>' + r + '</option>'; }).join("") +
           '</select>' +
           (nmod.error ? '<div class="field-error">' + esc(nmod.error) + '</div>' : '') +
@@ -5212,6 +5536,17 @@
       var action = t.getAttribute("data-action");
       if (action === "scan") scan(t.getAttribute("data-id"));
       else if (action === "dismissLost") dismissLostAlert(t.getAttribute("data-id"));
+      else if (action === "toggleFilterPanel") keepPeopleScroll(function () { view.filterOpen = !view.filterOpen; });
+      else if (action === "setFilter") keepPeopleScroll(function () { view.peopleFilters[t.getAttribute("data-key")] = t.getAttribute("data-value"); });
+      else if (action === "toggleFilterFlag") keepPeopleScroll(function () { var fk = t.getAttribute("data-key"); view.peopleFilters[fk] = !view.peopleFilters[fk]; });
+      else if (action === "clearFilters") keepPeopleScroll(function () { view.peopleFilters = emptyPeopleFilters(); });
+      else if (action === "removeFilter") keepPeopleScroll(function () {
+        var rk = t.getAttribute("data-key"), rv = t.getAttribute("data-value");
+        var pfx = view.peopleFilters;
+        if (FILTER_CHOICES[rk]) pfx[rk] = "any";
+        else if (Array.isArray(pfx[rk])) pfx[rk] = pfx[rk].filter(function (x) { return x !== rv; });
+        else pfx[rk] = false;
+      });
       else if (action === "toggleSounds") setScanSounds(!scanSoundsOn);
       else if (action === "installApp") { if (deferredInstall) { deferredInstall.prompt(); deferredInstall.userChoice.then(function () { deferredInstall = null; render(); }); } }
       else if (action === "testSound") { unlockAudio(); var seq = ["success", "already", "lost", "unknown"]; seq.forEach(function (k, i) { setTimeout(function () { var was = scanSoundsOn; scanSoundsOn = true; scanFeedback(k); scanSoundsOn = was; }, i * 900); }); }
@@ -5248,7 +5583,7 @@
       else if (action === "openSetupCamera") openCamera("setup");
       else if (action === "saveStaffName") saveStaffName();
       else if (action === "changeStaffName") { view.nameModal = { name: staffName, role: staffRole, error: "", first: !staffName || !staffRole }; render(); focusNameInput(); }
-      else if (action === "cancelNameModal") { view.nameModal = null; render(); }
+      else if (action === "cancelNameModal") { view.nameModal = null; render(); if (accessWaiting) showAccessWait(); }
       else if (action === "refreshStaff") { staffStatus = "Loading…"; render(); loadStaff(); }
       else if (action === "openProblemModal") openProblemModal();
       else if (action === "closeProblemModal") closeProblemModal();
@@ -5259,8 +5594,12 @@
       else if (action === "shareStep") { view.shareStep = parseInt(t.getAttribute("data-step"), 10) || 0; render(); }
       else if (action === "saveWalkin") saveWalkin();
       else if (action === "cancelWalkin") cancelWalkin();
-      else if (action === "bootRetry") loadFromBackend();
-      else if (action === "bootSettings") { hideBoot(); selectTab("settings"); }
+      else if (action === "bootRetry") { if (accessWaiting) checkAccessNow(); else loadFromBackend(); }
+      else if (action === "bootChangeName") { bootEl("bootScreen").hidden = true; view.nameModal = { name: staffName, role: staffRole, error: "", saving: false, first: false }; render(); focusNameInput(); }
+      else if (action === "approveStaff") { var sel = document.getElementById("roleFor-" + t.getAttribute("data-id")); setStaffAccess(t.getAttribute("data-id"), "Approved", sel ? sel.value : ""); }
+      else if (action === "denyStaff") setStaffAccess(t.getAttribute("data-id"), "Denied");
+      else if (action === "reviewApprovals") selectTab("settings");
+      else if (action === "bootSettings") { hideBoot(); if (accessWaiting) { if (accessPollTimer) clearInterval(accessPollTimer); } selectTab("settings"); }
       return;
     }
     if (e.target && e.target.id === "resetBtn") resetDemo();
@@ -5283,6 +5622,23 @@
 
   document.addEventListener("change", function (e) {
     var tgt = e.target;
+    // People filter pick-lists (team / stake / ward checkboxes).
+    if (tgt && tgt.getAttribute && tgt.getAttribute("data-filter-list")) {
+      var lk = tgt.getAttribute("data-filter-list"), lv = tgt.value;
+      keepPeopleScroll(function () {
+        var arr = view.peopleFilters[lk].filter(function (x) { return x !== lv; });
+        if (tgt.checked) arr.push(lv);
+        view.peopleFilters[lk] = arr;
+      });
+      return;
+    }
+    // Admin changes an approved person's role straight from the list (pending ones use Approve).
+    if (tgt && tgt.getAttribute && tgt.getAttribute("data-staff-role")) {
+      var sid = tgt.getAttribute("data-staff-role");
+      var sv = (staffList || []).filter(function (x) { return x.deviceId === sid; })[0];
+      if (sv && (sv.status || "Approved") === "Approved" && sv.role !== tgt.value) setStaffAccess(sid, "", tgt.value);
+      return;
+    }
     if (tgt && tgt.getAttribute && tgt.getAttribute("data-preset-select")) { selectPreset(pscopeOf(tgt), tgt.value); return; }
     if (tgt && tgt.getAttribute && tgt.getAttribute("data-pfield")) {
       setPresetField(pscopeOf(tgt), tgt.getAttribute("data-pfield"), tgt.type === "checkbox" ? tgt.checked : tgt.value);
