@@ -72,6 +72,16 @@ t('reset printing is admin only once an Admin exists', () => {
   assert.strictEqual(g.post({ action: 'resetPrinted', deviceId: 'DB' }).error, 'admin only');
   assert.ok(g.post({ action: 'resetPrinted', deviceId: 'DA' }).ok);
 });
+t('desk search by phone / email', () => {
+  const g = fresh();
+  const list = g.get({ action: 'list' }).registrants;
+  const row = fixture.Registrants[3]; const head = fixture.Registrants[0];
+  const phone = row[head.indexOf('Phone')], email = row[head.indexOf('Email')];
+  const spaced = '+61 ' + phone.slice(1, 4) + ' ' + phone.slice(4, 7) + ' ' + phone.slice(7);
+  let r = g.get({ action: 'search', q: spaced }); assert.ok(r.results.some(x => x.id === row[0]), spaced + JSON.stringify(r));
+  r = g.get({ action: 'search', q: email.split('@')[0].toUpperCase() }); assert.strictEqual(r.results[0].id, row[0]);
+  assert.strictEqual(g.get({ action: 'search', q: 'ab' }).results.length, 0);
+});
 t('unknown action', () => { const g = fresh(); assert.strictEqual(g.post({ action: 'nope' }).ok, false); });
 
 if (require.main === module) {

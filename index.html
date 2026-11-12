@@ -2800,7 +2800,46 @@
 
   function pinBack() { view.activeTab = "people"; view.screen = "tab"; render(); }
 
-  function setPeopleSearch(term) {
+  // Desk search: a phone number or email (or a name not found on this phone) is also looked up
+  // in the Sheet, so someone without their lanyard can still be found.
+  var remoteSearch = null;   // { term, status: "loading" | "" | message, results: [] }
+  var remoteSearchTimer = null;
+  function wantsRemoteSearch(term) {
+    var t = term.trim();
+    if (!BACKEND_URL || t.length < 3) return false;
+    if (t.indexOf("@") !== -1) return true;
+    if (t.replace(/\D/g, "").length >= 6) return true;
+    return t.length >= 4 && !state.registrants.some(function (r) { return r.name.toLowerCase().indexOf(t.toLowerCase()) !== -1; });
+  }
+  function runRemoteSearch(term) {
+    var t = term.trim();
+    remoteSearch = { term: t, status: "loading", results: [] };
+    trackedFetch(apiUrl({ action: "search", q: t })).then(function (d) {
+      if (!remoteSearch || remoteSearch.term !== t) return;
+      if (!d || d.ok === false) {
+        remoteSearch = { term: t, status: /unknown action/i.test(String(d && d.error)) ? "Phone/email search needs the updated Sheet script." : "Couldn’t search the Sheet — " + friendlyErr(d && d.error), results: [] };
+      } else {
+        remoteSearch = { term: t, status: d.results.length ? "" : "No phone number or email in the Sheet matches that either.", results: d.results };
+      }
+      if (view.screen === "tab" && view.activeTab === "people") setPeopleSearch(view.peopleSearch, true);
+    }, function (err) {
+      if (!remoteSearch || remoteSearch.term !== t) return;
+      remoteSearch = { term: t, status: "Couldn’t reach the Sheet to search phone numbers and emails.", results: [] };
+      if (view.screen === "tab" && view.activeTab === "people") setPeopleSearch(view.peopleSearch, true);
+    });
+  }
+
+  function setPeopleSearch(term, fromRemote) {
+    if (!fromRemote) {
+      if (remoteSearchTimer) clearTimeout(remoteSearchTimer);
+      if (wantsRemoteSearch(term)) {
+        var t = term.trim();
+        if (!remoteSearch || remoteSearch.term !== t) {
+          remoteSearch = { term: t, status: "loading", results: [] };
+          remoteSearchTimer = setTimeout(function () { runRemoteSearch(t); }, 450);
+        }
+      } else remoteSearch = null;
+    }
     view.peopleSearch = term;
     render();
     var el = document.getElementById("peopleSearch");
@@ -4314,23 +4353,51 @@
           r.stake.toLowerCase().indexOf(pterm) !== -1) return true;
         return !!r.details && r.details.some(function (kv) { return String(kv[1]).toLowerCase().indexOf(pterm) !== -1; });
       });
+      var personRow = function (r, note) {
+        var lostBadge = (r.walkin ? ' <span class="pill pill-walkin pill-sm">Walk-in</span>' : '') +
+          (r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '') +
+          (r.allergy ? ' <span class="pill pill-critical pill-sm" title="Allergy: ' + esc(r.allergy) + '">&#9888; Allergy</span>' : '') +
+          (r.checkedIn ? ' <span class="pill pill-success pill-sm">In</span>' : '');
+        return '<button class="lookup-item has-avatar" data-action="scan" data-id="' + esc(r.id) + '">' +
+          avatarHtml(r) +
+          '<span class="lookup-text">' +
+            '<span class="lookup-name">' + esc(r.name) + lostBadge + '</span>' +
+            '<span class="lookup-meta">' + esc(r.ward || '') + ' &middot; ' + esc(r.stake || '') + (r.team ? ' &middot; ' + esc(r.team) : '') + (note ? ' &middot; <strong>' + esc(note) + '</strong>' : '') + '</span>' +
+          '</span>' +
+        '</button>';
+      };
+      // Long lists are capped so typing stays quick on a phone; searching narrows them.
+      var PEOPLE_CAP = 200;
+      var shownPeople = presults.slice(0, PEOPLE_CAP);
       var prows = presults.length
-        ? presults.map(function (r) {
-            var lostBadge = (r.walkin ? ' <span class="pill pill-walkin pill-sm">Walk-in</span>' : '') +
-              (r.lost ? ' <span class="pill pill-critical pill-sm">&#128680; Lost</span>' : '');
-            return '<button class="lookup-item has-avatar" data-action="scan" data-id="' + r.id + '">' +
-              avatarHtml(r) +
-              '<span class="lookup-text">' +
-                '<span class="lookup-name">' + esc(r.name) + lostBadge + '</span>' +
-                '<span class="lookup-meta">' + esc(r.ward) + ' &middot; ' + esc(r.stake) + '</span>' +
-              '</span>' +
-            '</button>';
-          }).join("")
-        : '<div class="empty-note">No one matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;.</div>';
+        ? shownPeople.map(function (r) { return personRow(r); }).join("") +
+          (presults.length > PEOPLE_CAP ? '<div class="empty-note">Showing ' + PEOPLE_CAP + ' of ' + presults.length + ' &mdash; type a name, ward or phone number to narrow it down.</div>' : '')
+        : '<div class="empty-note">No one on this phone matches &ldquo;' + esc(view.peopleSearch) + '&rdquo;.</div>';
+
+      // Phone / email matches come from the Sheet (those aren't kept on every phone).
+      var rs = remoteSearch;
+      var remoteHtml = "";
+      if (rs && rs.term === view.peopleSearch.trim() && pterm) {
+        var localIds = {};
+        shownPeople.forEach(function (r) { localIds[r.id] = true; });
+        var extra = (rs.results || []).filter(function (x) { return !localIds[x.id] || x.matchedOn !== "name"; });
+        if (rs.status === "loading") remoteHtml = '<div class="empty-note">Searching the Sheet for phone numbers and emails&hellip;</div>';
+        else if (rs.status) remoteHtml = '<div class="empty-note">' + esc(rs.status) + '</div>';
+        else if (extra.length) {
+          remoteHtml = '<div class="task-head" style="margin-top:6px"><span>Matched in the Sheet</span><span class="mono">' + extra.length + '</span></div>' +
+            '<div class="lanyard-list">' + extra.map(function (x) {
+              var local = byId(state.registrants, x.id) || mapServerRegistrant(x);
+              return personRow(local, "matched " + x.matchedOn);
+            }).join("") + '</div>';
+        }
+      }
+
+      if (!presults.length && remoteHtml && remoteHtml.indexOf("Matched in the Sheet") !== -1) prows = "";
 
       el.innerHTML =
         '<h2 class="screen-title">People</h2>' +
-        '<input class="text-input" id="peopleSearch" type="text" placeholder="Search name, ward, stake or any detail" value="' + esc(view.peopleSearch) + '">' +
+        '<input class="text-input" id="peopleSearch" type="search" inputmode="search" placeholder="Name, ward, stake, phone or email" value="' + esc(view.peopleSearch) + '">' +
+        remoteHtml +
         '<div class="lanyard-list">' + prows + '</div>';
 
       var peopleInput = document.getElementById("peopleSearch");

@@ -291,6 +291,7 @@ function doGet(e) {
       return jsonOut_({ ok: true, rev: rev, registrants: registrants, activities: activities, walkinPrintedTo: getWalkinPrintedTo_() });
     }
     if (action === 'rev') return jsonOut_(revInfo_());   // Live.gs
+    if (action === 'search') return jsonOut_(searchPeople_(e.parameter.q));
     if (action === 'person') {
       return jsonOut_(personDetails_(e.parameter.id));
     }
@@ -544,6 +545,48 @@ function photoDataUri_(regId, full) {
   } catch (err) {
     return { ok: false, error: String(err) };
   }
+}
+
+// Desk search for someone without their lanyard: phone number (any format, +61 or 0, spaces),
+// email (any part), or name. Done here so phone numbers and emails aren't sent to every phone.
+function digitsOnly_(v) {
+  var d = String(v == null ? '' : v).replace(/\D/g, '');
+  if (d.indexOf('61') === 0 && d.length >= 11) d = '0' + d.slice(2);   // +61 4xx -> 04xx
+  if (d.length === 9 && d.charAt(0) === '4') d = '0' + d;               // 4xx xxx xxx -> 04xx
+  return d;
+}
+function searchPeople_(q) {
+  q = String(q == null ? '' : q).trim();
+  if (q.length < 3) return { ok: true, results: [] };
+  var reg = readRegistrants_();
+  var map = reg.map;
+  var qDigits = digitsOnly_(q);
+  var qLower = q.toLowerCase();
+  var byPhone = qDigits.length >= 6 && qDigits.length >= q.replace(/[\s+()-]/g, '').length - 1;
+  var out = [];
+  for (var i = 0; i < reg.rows.length && out.length < 20; i++) {
+    var row = reg.rows[i];
+    var hit = '';
+    if (byPhone) {
+      ['Phone', 'Emergency Contact Mobile'].forEach(function (h) {
+        if (hit || !map[h]) return;
+        var d = digitsOnly_(row[map[h] - 1]);
+        if (d && d.indexOf(qDigits) !== -1) hit = h === 'Phone' ? 'phone' : 'emergency contact phone';
+      });
+    } else {
+      if (map['Email'] && String(row[map['Email'] - 1]).toLowerCase().indexOf(qLower) !== -1) hit = 'email';
+      if (!hit) {
+        var nm = [map['First Name'], map['Preferred Name'], map['Last Name']].map(function (c) { return c ? String(row[c - 1]) : ''; }).join(' ').toLowerCase();
+        if (nm.indexOf(qLower) !== -1) hit = 'name';
+      }
+    }
+    if (hit) {
+      var r = rowToRegistrant_(row, map);
+      r.matchedOn = hit;
+      out.push(r);
+    }
+  }
+  return { ok: true, results: out };
 }
 
 // One person's whole Sheet row, as [header, value] pairs in column order (for the Details tab).
